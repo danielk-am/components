@@ -1,9 +1,12 @@
+// File: command-palette-lib.js
 (function () {
     'use strict';
   
     const DEFAULT_OPTIONS = {
       toggleKey: '/',
       toggleModifier: 'ctrlKey',
+      secondaryModifier: null,
+      allowInInputs: true,
       width: 640,
       maxHeight: 440,
       placeholder: 'Type to search…',
@@ -38,7 +41,7 @@
         flex-direction: column;
       }
   
-      .header {
+        .header {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -66,6 +69,111 @@
         padding: 10px 4px 12px;
         scrollbar-width: thin;
       }
+
+        .status {
+          padding: 10px 18px;
+          font-size: 12px;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+          display: none;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .status[data-visible="true"] {
+          display: flex;
+        }
+
+        .status[data-variant="info"] { color: #1d4ed8; background: rgba(59, 130, 246, 0.08); }
+        .status[data-variant="success"] { color: #047857; background: rgba(16, 185, 129, 0.08); }
+        .status[data-variant="warning"] { color: #a16207; background: rgba(234, 179, 8, 0.12); }
+        .status[data-variant="danger"] { color: #b91c1c; background: rgba(248, 113, 113, 0.12); }
+
+        .status .spinner {
+          width: 12px;
+          height: 12px;
+          border-radius: 999px;
+          border: 2px solid currentColor;
+          border-right-color: transparent;
+          animation: cp-spin 0.8s linear infinite;
+        }
+
+        @keyframes cp-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .preview {
+          display: none;
+          flex-direction: column;
+          border-top: 1px solid rgba(148, 163, 184, 0.35);
+          background: #f8fafc;
+          padding: 16px 18px;
+          gap: 12px;
+        }
+
+        .preview[data-visible="true"] {
+          display: flex;
+        }
+
+        .preview-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .preview-title {
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #475569;
+        }
+
+        .preview-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .preview-actions button {
+          border: none;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          background: #4f46e5;
+          color: #fff;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .preview-actions button.secondary {
+          background: rgba(79, 70, 229, 0.12);
+          color: #4f46e5;
+        }
+
+        .preview-content {
+          background: #fff;
+          border-radius: 10px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          padding: 14px;
+          font-size: 13px;
+          line-height: 1.5;
+          color: #1f2937;
+          max-height: 260px;
+          overflow-y: auto;
+        }
+
+        .preview-content p {
+          margin: 0 0 8px;
+        }
+
+        .preview-content ul,
+        .preview-content ol {
+          margin: 0 0 8px 18px;
+        }
   
       .group {
         padding: 10px 10px 0;
@@ -169,6 +277,15 @@
       }
       return matches === term.length;
     }
+
+    function escapeHTML(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
   
     class CommandPalette extends HTMLElement {
       constructor(options = {}) {
@@ -204,8 +321,48 @@
         this.list = document.createElement('div');
         this.list.className = 'list';
   
+        this.statusBar = document.createElement('div');
+        this.statusBar.className = 'status';
+        this.statusBar.dataset.visible = 'false';
+        this.statusBar.dataset.variant = 'info';
+
+        this.preview = document.createElement('div');
+        this.preview.className = 'preview';
+        this.preview.dataset.visible = 'false';
+
+        const previewHeader = document.createElement('div');
+        previewHeader.className = 'preview-header';
+
+        this.previewTitle = document.createElement('span');
+        this.previewTitle.className = 'preview-title';
+        this.previewTitle.textContent = 'Preview';
+
+        this.previewActions = document.createElement('div');
+        this.previewActions.className = 'preview-actions';
+
+        this.previewPrimaryButton = document.createElement('button');
+        this.previewPrimaryButton.type = 'button';
+        this.previewPrimaryButton.textContent = 'Use result';
+        this.previewPrimaryButton.hidden = true;
+
+        this.previewSecondaryButton = document.createElement('button');
+        this.previewSecondaryButton.type = 'button';
+        this.previewSecondaryButton.textContent = 'Copy';
+        this.previewSecondaryButton.classList.add('secondary');
+        this.previewSecondaryButton.hidden = true;
+
+        this.previewActions.append(this.previewPrimaryButton, this.previewSecondaryButton);
+        previewHeader.append(this.previewTitle, this.previewActions);
+
+        this.previewContent = document.createElement('div');
+        this.previewContent.className = 'preview-content';
+
+        this.preview.append(previewHeader, this.previewContent);
+
         root.appendChild(header);
+        root.appendChild(this.statusBar);
         root.appendChild(this.list);
+        root.appendChild(this.preview);
   
         const style = document.createElement('style');
         style.textContent = CSS;
@@ -217,10 +374,34 @@
         this.paletteData = [];
         this._boundKeyHandler = this._handleKey.bind(this);
         this._shortcutHandler = this._toggleFromShortcut.bind(this);
+        this._previewPrimaryHandler = null;
+        this._previewSecondaryHandler = null;
   
         this.input.addEventListener('input', () => this._filter());
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
         this.list.addEventListener('mousedown', (e) => this._handleClick(e));
+
+        this.previewPrimaryButton.addEventListener('click', () => {
+          if (typeof this._previewPrimaryHandler === 'function') {
+            try {
+              this._previewPrimaryHandler();
+            } catch (err) {
+              console.error('Command palette primary action error:', err);
+            }
+          }
+        });
+
+        this.previewSecondaryButton.addEventListener('click', () => {
+          if (typeof this._previewSecondaryHandler === 'function') {
+            try {
+              this._previewSecondaryHandler();
+            } catch (err) {
+              console.error('Command palette secondary action error:', err);
+            }
+          }
+        });
+
+        this._previewPlainText = '';
       }
   
       connectedCallback() {
@@ -249,6 +430,7 @@
         });
   
         document.addEventListener('keydown', this._boundKeyHandler, true);
+        this.dispatchEvent(new CustomEvent('he:open', { detail: { palette: this } }));
       }
   
       close() {
@@ -258,6 +440,7 @@
         this.activeIndex = -1;
         this._highlightActive();
         document.removeEventListener('keydown', this._boundKeyHandler, true);
+        this.dispatchEvent(new CustomEvent('he:close', { detail: { palette: this } }));
       }
   
       toggle() {
@@ -269,9 +452,20 @@
       }
   
       _toggleFromShortcut(event) {
-        if (event.key !== this.config.toggleKey || !event[this.config.toggleModifier]) return;
-        if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.isContentEditable)) return;
-  
+        const eventKey = typeof event.key === 'string' ? event.key.toLowerCase() : event.key;
+        const toggleKey = typeof this.config.toggleKey === 'string' ? this.config.toggleKey.toLowerCase() : this.config.toggleKey;
+        if (eventKey !== toggleKey) return;
+
+        if (this.config.toggleModifier && !event[this.config.toggleModifier]) return;
+        if (this.config.secondaryModifier && !event[this.config.secondaryModifier]) return;
+
+        if (!this.config.allowInInputs) {
+          const target = event.target;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+            return;
+          }
+        }
+
         event.preventDefault();
         this.toggle();
       }
@@ -306,6 +500,114 @@
         this.activeIndex = index;
         this._highlightActive(true);
         this._activate();
+      }
+
+      setStatus(message, options = {}) {
+        if (!message) {
+          this.clearStatus();
+          return;
+        }
+
+        const { variant = 'info', loading = false } = options;
+        this.statusBar.dataset.variant = variant;
+        this.statusBar.dataset.visible = 'true';
+        this.statusBar.innerHTML = '';
+
+        if (loading) {
+          const spinner = document.createElement('span');
+          spinner.className = 'spinner';
+          this.statusBar.appendChild(spinner);
+        }
+
+        const text = document.createElement('span');
+        text.textContent = message;
+        this.statusBar.appendChild(text);
+      }
+
+      clearStatus() {
+        this.statusBar.dataset.visible = 'false';
+        this.statusBar.innerHTML = '';
+      }
+
+      setPreview(options = {}) {
+        const {
+          title = 'Preview',
+          html = '',
+          text = '',
+          append = false,
+          primary = null,
+          secondary = null,
+        } = options;
+
+        if (!append) {
+          this.previewContent.innerHTML = '';
+          this._previewPlainText = '';
+        }
+
+        this.previewTitle.textContent = title;
+
+        if (html) {
+          if (append) {
+            this.previewContent.insertAdjacentHTML('beforeend', html);
+          } else {
+            this.previewContent.innerHTML = html;
+          }
+        } else if (text) {
+          const safe = escapeHTML(text).replace(/\n/g, '<br>');
+          if (append) {
+            this.previewContent.insertAdjacentHTML('beforeend', safe);
+          } else {
+            this.previewContent.innerHTML = safe;
+          }
+        }
+
+        if (text) {
+          this._previewPlainText = append ? `${this._previewPlainText}${text}` : text;
+        } else if (!this._previewPlainText) {
+          this._previewPlainText = this.previewContent.textContent || '';
+        }
+
+        if (primary && typeof primary === 'object') {
+          this.previewPrimaryButton.textContent = primary.label || 'Use result';
+          this.previewPrimaryButton.hidden = false;
+          this._previewPrimaryHandler = primary.onClick || null;
+        } else {
+          this.previewPrimaryButton.hidden = true;
+          this._previewPrimaryHandler = null;
+        }
+
+        if (secondary && typeof secondary === 'object') {
+          this.previewSecondaryButton.textContent = secondary.label || 'Copy';
+          this.previewSecondaryButton.hidden = false;
+          this._previewSecondaryHandler = secondary.onClick || null;
+        } else {
+          this.previewSecondaryButton.hidden = true;
+          this._previewSecondaryHandler = null;
+        }
+
+        this.preview.dataset.visible = 'true';
+        return this;
+      }
+
+      appendPreview(options = {}) {
+        return this.setPreview({ ...options, append: true });
+      }
+
+      hidePreview(clearContent = false) {
+        this.preview.dataset.visible = 'false';
+        if (clearContent) {
+          this.previewContent.innerHTML = '';
+          this._previewPlainText = '';
+        }
+        this.previewPrimaryButton.hidden = true;
+        this.previewSecondaryButton.hidden = true;
+        this._previewPrimaryHandler = null;
+        this._previewSecondaryHandler = null;
+        return this;
+      }
+
+      getPreviewText() {
+        return this._previewPlainText || this.previewContent.textContent || '';
       }
   
       _moveSelection(delta) {
