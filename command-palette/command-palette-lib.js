@@ -83,6 +83,19 @@
         scrollbar-width: thin;
       }
 
+      /* Preview-active affordances: clearly show which section is interactive */
+      .palette[data-mode="preview"] .header,
+      .palette[data-mode="preview"] .list {
+        opacity: 0.55;
+        filter: grayscale(0.1);
+        pointer-events: none;
+      }
+
+      .palette[data-mode="preview"] .preview {
+        outline: 2px solid #4f46e5;
+        outline-offset: -2px;
+      }
+
         .status {
           padding: 10px 18px;
           font-size: 12px;
@@ -398,6 +411,7 @@
 
         this.preview.append(previewHeader, this.previewContent);
 
+        this.header = header;
         root.appendChild(header);
         root.appendChild(this.statusBar);
         root.appendChild(this.list);
@@ -666,6 +680,9 @@
         }
 
         this.preview.dataset.visible = 'true';
+        this._container.dataset.mode = 'preview';
+        if (this.header) this.header.setAttribute('aria-disabled', 'true');
+        if (this.list) this.list.setAttribute('aria-disabled', 'true');
         return this;
       }
 
@@ -688,6 +705,9 @@
         this.previewSecondaryButton.hidden = true;
         this._previewPrimaryHandler = null;
         this._previewSecondaryHandler = null;
+        this._container.removeAttribute('data-mode');
+        if (this.header) this.header.removeAttribute('aria-disabled');
+        if (this.list) this.list.removeAttribute('aria-disabled');
         return this;
       }
 
