@@ -110,7 +110,12 @@
         if (insertedWithExecCommand) {
           logger?.('execCommand reported success but content did not change; falling back.', 'warn');
         }
-        success = asHtml ? appendHtmlFragmentFallback(target, text, logger) : appendFragmentFallback(target, text, logger);
+        if (asHtml) {
+          // Try clipboard paste fallback first for better editor compatibility
+          success = tryPasteHtml(target, text, logger) || appendHtmlFragmentFallback(target, text, logger);
+        } else {
+          success = appendFragmentFallback(target, text, logger);
+        }
       }
 
       dispatchInput(target, text);
@@ -233,6 +238,27 @@
     const div = document.createElement('div');
     div.innerHTML = String(html);
     return div.innerText || div.textContent || '';
+  }
+
+  function tryPasteHtml(target, html, logger) {
+    try {
+      const data = new DataTransfer();
+      data.setData('text/html', String(html));
+      data.setData('text/plain', htmlToText(html));
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: data,
+      });
+      target.focus();
+      const dispatched = target.dispatchEvent(pasteEvent);
+      const ok = dispatched && wasHtmlInserted(target, html);
+      if (ok) logger?.('Inserted via ClipboardEvent paste HTML.', 'log');
+      return ok;
+    } catch (error) {
+      logger?.(`ClipboardEvent paste fallback failed: ${error.message}`, 'warn');
+      return false;
+    }
   }
 
   window.TextInsertionUtils = {
