@@ -303,6 +303,14 @@
       }
     `;
   
+    /**
+     * Performs a lightweight subsequence fuzzy match to determine whether the term appears
+     * in order within the provided text.
+     *
+     * @param {string} term - Search query typed by the user.
+     * @param {string} text - Candidate string to test.
+     * @returns {boolean} True when the term's characters appear sequentially in the text.
+     */
     function fuzzymatch(term, text) {
       if (!term) return true;
       term = term.toLowerCase();
@@ -319,6 +327,12 @@
       return matches === term.length;
     }
 
+    /**
+     * Escapes HTML-sensitive characters so dynamic text can be safely inserted into templates.
+     *
+     * @param {string} value - Raw text value to encode.
+     * @returns {string} Escaped string.
+     */
     function escapeHTML(value) {
       return String(value || '')
         .replace(/&/g, '&amp;')
@@ -328,6 +342,12 @@
         .replace(/'/g, '&#39;');
     }
   
+    /**
+     * Custom element that renders the HE Command Palette, handling keyboard interaction,
+     * filtering logic, previews, and streaming updates.
+     *
+     * @extends HTMLElement
+     */
     class CommandPalette extends HTMLElement {
       constructor(options = {}) {
         super();
@@ -439,8 +459,6 @@
         this._previewPrimaryHandler = null;
         this._previewSecondaryHandler = null;
   
-        this.input.addEventListener('input', () => this._filter());
-        this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
         this.list.addEventListener('mousedown', (e) => this._handleClick(e));
 
         // Capture Enter anywhere in the shadow root when preview is visible
@@ -495,12 +513,20 @@
         document.removeEventListener('keydown', this._shortcutHandler, true);
       }
   
+      /**
+       * Replaces the palette's dataset with a new set of grouped command definitions.
+       *
+       * @param {Array} data - Array of groups containing command item descriptors.
+       */
       setData(data) {
         this.paletteData = Array.isArray(data) ? data : [];
         this._render();
         this._filter();
       }
   
+      /**
+       * Displays the palette overlay and focuses the search textarea.
+       */
       open() {
         if (this.hasAttribute('open')) return;
         this.setAttribute('open', '');
@@ -515,6 +541,9 @@
         this.dispatchEvent(new CustomEvent('he:open', { detail: { palette: this } }));
       }
   
+      /**
+       * Hides the palette overlay and clears selection state.
+       */
       close() {
         if (!this.hasAttribute('open')) return;
         this.removeAttribute('open');
@@ -525,6 +554,9 @@
         this.dispatchEvent(new CustomEvent('he:close', { detail: { palette: this } }));
       }
   
+      /**
+       * Toggles the palette between open and closed states.
+       */
       toggle() {
         if (this.dataset.state === 'open') {
           this.close();
@@ -533,6 +565,11 @@
         }
       }
   
+      /**
+       * Handles the global keyboard shortcut listeners bound on the document to toggle the palette.
+       *
+       * @param {KeyboardEvent} event - Key event triggered on the host page.
+       */
       _toggleFromShortcut(event) {
         const eventKey = typeof event.key === 'string' ? event.key.toLowerCase() : event.key;
         const toggleKey = typeof this.config.toggleKey === 'string' ? this.config.toggleKey.toLowerCase() : this.config.toggleKey;
@@ -555,6 +592,11 @@
         this.toggle();
       }
   
+      /**
+       * Processes high-level key events while the palette is open (e.g., Escape).
+       *
+       * @param {KeyboardEvent} event - Key event captured on the document.
+       */
       _handleKey(event) {
         if (event.key === 'Escape') {
           event.stopPropagation();
@@ -562,6 +604,11 @@
         }
       }
   
+      /**
+       * Handles keyboard interactions scoped to the palette's search textarea.
+       *
+       * @param {KeyboardEvent} event - Keyboard event fired within the input.
+       */
       _handleInputKeys(event) {
         // When preview is visible, Enter should confirm preview; Shift+Enter still inserts newline
         if (this.preview?.dataset?.visible === 'true') {
@@ -630,6 +677,11 @@
         }
       }
   
+      /**
+       * Responds to mouse clicks on command items within the palette list.
+       *
+       * @param {MouseEvent} event - Click event with composed path support.
+       */
       _handleClick(event) {
         const item = event.composedPath().find((node) => node?.dataset?.index);
         if (!item) return;
@@ -639,6 +691,14 @@
         this._activate();
       }
 
+      /**
+       * Updates the status bar beneath the search input with the provided message and style.
+       *
+       * @param {string} message - Message to display.
+       * @param {Object} [options={}] - Extra status metadata.
+       * @param {('info'|'success'|'warning'|'danger')} [options.variant='info'] - Visual tone.
+       * @param {boolean} [options.loading=false] - When true, displays a spinner.
+       */
       setStatus(message, options = {}) {
         if (!message) {
           this.clearStatus();
@@ -661,11 +721,20 @@
         this.statusBar.appendChild(text);
       }
 
+      /**
+       * Clears the status bar message and hides the element.
+       */
       clearStatus() {
         this.statusBar.dataset.visible = 'false';
         this.statusBar.innerHTML = '';
       }
 
+      /**
+       * Renders the preview pane with text or HTML content and optional action buttons.
+       *
+       * @param {Object} [options={}] - Preview configuration.
+       * @returns {CommandPalette} Fluent reference to the palette instance.
+       */
       setPreview(options = {}) {
         const {
           title = 'Preview',
@@ -729,10 +798,22 @@
         return this;
       }
 
+      /**
+       * Appends content to the existing preview without clearing prior output.
+       *
+       * @param {Object} [options={}] - Preview configuration.
+       * @returns {CommandPalette} Fluent reference to the palette instance.
+       */
       appendPreview(options = {}) {
         return this.setPreview({ ...options, append: true });
       }
 
+      /**
+       * Hides the preview pane, optionally clearing rendered content and handlers.
+       *
+       * @param {boolean} [clearContent=false] - When true, purge the preview content.
+       * @returns {CommandPalette} Fluent reference to the palette instance.
+       */
       hidePreview(clearContent = false) {
         this.preview.dataset.visible = 'false';
         if (clearContent) {
@@ -754,6 +835,11 @@
         return this;
       }
 
+      /**
+       * Returns the plain text representation of the current preview.
+       *
+       * @returns {string} Preview content as plain text.
+       */
       getPreviewText() {
         return this._previewPlainText || this.previewContent.textContent || '';
       }
@@ -763,6 +849,12 @@
        * - If the new HTML starts with the previous content, only the delta is appended.
        * - Otherwise, replaces the content once per animation frame.
        * - Preserves scroll position, auto-sticks to bottom when already at bottom.
+       */
+      /**
+       * Schedules a diff-aware DOM update for the preview content to minimise flicker.
+       *
+       * @param {string} newHTML - Latest HTML snapshot for the preview.
+       * @param {boolean} append - Whether the update represents incremental appends.
        */
       _schedulePreviewHTMLUpdate(newHTML, append) {
         const container = this.previewContent;
@@ -793,12 +885,20 @@
         });
       }
   
+      /**
+       * Moves the highlighted list selection up or down by the provided offset.
+       *
+       * @param {number} delta - Signed offset to apply to the active index.
+       */
       _moveSelection(delta) {
         if (!this.filteredItems.length) return;
         this.activeIndex = (this.activeIndex + delta + this.filteredItems.length) % this.filteredItems.length;
         this._highlightActive(true);
       }
   
+      /**
+       * Executes the currently highlighted command, invoking its `onSelect` behaviour.
+       */
       _activate() {
         if (this.activeIndex < 0 || this.activeIndex >= this.filteredItems.length) return;
         const item = this.filteredItems[this.activeIndex];
@@ -819,6 +919,9 @@
         }
       }
   
+      /**
+       * Rebuilds the palette DOM based on the latest grouped dataset.
+       */
       _render() {
         this.list.innerHTML = '';
         this.items = [];
@@ -886,6 +989,9 @@
         });
       }
   
+      /**
+       * Filters palette items using the current input value and updates the DOM.
+       */
       _filter() {
         const raw = this.input.value;
         const term = raw.trim();
@@ -934,6 +1040,11 @@
         this._highlightActive();
       }
   
+      /**
+       * Applies active state styles to the highlighted item and optionally scrolls it into view.
+       *
+       * @param {boolean} scrollIntoView - When true, ensures the active item is visible.
+       */
       _highlightActive(scrollIntoView = false) {
         this.items.forEach((entry) => {
           entry.element.dataset.active = 'false';
@@ -958,6 +1069,9 @@
         }
       }
   
+      /**
+       * Ensures the empty state message is visible when no items match the current query.
+       */
       _showEmptyState() {
         if (this._emptyEl) return;
         this._emptyEl = document.createElement('div');
@@ -966,6 +1080,9 @@
         this.list.appendChild(this._emptyEl);
       }
   
+      /**
+       * Removes the empty state message if it is currently displayed.
+       */
       _removeEmptyState() {
         if (!this._emptyEl) return;
         this._emptyEl.remove();
