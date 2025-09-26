@@ -514,7 +514,7 @@
           return;
         }
 
-        if (event.key === ' ') {
+        if (event.key === ' ' || event.code === 'Space') {
           if (event.ctrlKey || event.metaKey || event.altKey) return;
           event.preventDefault();
           this._insertIntoInput(' ');
@@ -601,8 +601,8 @@
           html = '',
           text = '',
           append = false,
-          primary = null,
-          secondary = null,
+          primary = undefined,
+          secondary = undefined,
         } = options;
 
         if (!append) {
@@ -633,22 +633,32 @@
           this._previewPlainText = this.previewContent.textContent || '';
         }
 
-        if (primary && typeof primary === 'object') {
-          this.previewPrimaryButton.textContent = primary.label || 'Use result';
-          this.previewPrimaryButton.hidden = false;
-          this._previewPrimaryHandler = primary.onClick || null;
-        } else {
+        const shouldUpdatePrimary = primary !== undefined;
+        if (shouldUpdatePrimary) {
+          if (primary && typeof primary === 'object') {
+            this.previewPrimaryButton.textContent = primary.label || 'Use result';
+            this.previewPrimaryButton.hidden = false;
+            this._previewPrimaryHandler = primary.onClick || null;
+          } else {
+            this.previewPrimaryButton.hidden = true;
+            this._previewPrimaryHandler = null;
+          }
+        } else if (!append && !this._previewPrimaryHandler) {
           this.previewPrimaryButton.hidden = true;
-          this._previewPrimaryHandler = null;
         }
 
-        if (secondary && typeof secondary === 'object') {
-          this.previewSecondaryButton.textContent = secondary.label || 'Copy';
-          this.previewSecondaryButton.hidden = false;
-          this._previewSecondaryHandler = secondary.onClick || null;
-        } else {
+        const shouldUpdateSecondary = secondary !== undefined;
+        if (shouldUpdateSecondary) {
+          if (secondary && typeof secondary === 'object') {
+            this.previewSecondaryButton.textContent = secondary.label || 'Copy';
+            this.previewSecondaryButton.hidden = false;
+            this._previewSecondaryHandler = secondary.onClick || null;
+          } else {
+            this.previewSecondaryButton.hidden = true;
+            this._previewSecondaryHandler = null;
+          }
+        } else if (!append && !this._previewSecondaryHandler) {
           this.previewSecondaryButton.hidden = true;
-          this._previewSecondaryHandler = null;
         }
 
         this.preview.dataset.visible = 'true';
