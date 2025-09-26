@@ -796,6 +796,8 @@
             data._element = element;
           } else {
             element.style.display = 'none';
+            delete data._element;
+            delete element.dataset.index;
           }
         });
   
@@ -807,6 +809,12 @@
           });
         }
   
+        this.filteredItems.forEach((item, index) => {
+          if (item && item._element) {
+            item._element.dataset.index = String(index);
+          }
+        });
+
         this.list.querySelectorAll('.group').forEach((groupEl) => {
           const hasVisible = Array.from(groupEl.children).some((child) => child.classList.contains('item') && child.style.display !== 'none');
           groupEl.style.display = hasVisible ? '' : 'none';
