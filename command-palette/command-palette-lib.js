@@ -545,11 +545,19 @@
       }
   
       _handleInputKeys(event) {
-        // When preview is visible, Enter should not trigger item activation from the list
+        // When preview is visible, Enter should confirm preview; Shift+Enter still inserts newline
         if (this.preview?.dataset?.visible === 'true') {
-          if (event.key === 'Enter' && !(event.shiftKey || event.metaKey || event.ctrlKey || event.altKey)) {
-            event.preventDefault();
-            event.stopPropagation();
+          if (event.key === 'Enter') {
+            const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
+            if (!hasModifier) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (typeof this._previewPrimaryHandler === 'function') {
+                try { this._previewPrimaryHandler(); } catch (err) { console.error('Preview primary action error:', err); }
+              }
+              return;
+            }
+            // Shift+Enter → allow newline in textarea
             return;
           }
         }
