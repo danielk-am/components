@@ -505,10 +505,23 @@
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           this._moveSelection(1);
-        } else if (event.key === 'ArrowUp') {
+          return;
+        }
+
+        if (event.key === 'ArrowUp') {
           event.preventDefault();
           this._moveSelection(-1);
-        } else if (event.key === 'Enter') {
+          return;
+        }
+
+        if (event.key === ' ') {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          event.preventDefault();
+          this._insertIntoInput(' ');
+          return;
+        }
+
+        if (event.key === 'Enter') {
           const queryRaw = this.input.value;
           const query = queryRaw.trim();
           const modifierSubmit = (event.metaKey || event.ctrlKey) && query;
@@ -537,7 +550,10 @@
               })
             );
           }
-        } else if (event.key === 'Tab') {
+          return;
+        }
+
+        if (event.key === 'Tab') {
           event.preventDefault();
           this._moveSelection(event.shiftKey ? -1 : 1);
         }
@@ -799,6 +815,19 @@
   
         this.activeIndex = this.filteredItems.length ? 0 : -1;
         this._highlightActive();
+      }
+
+      _insertIntoInput(text) {
+        const input = this.input;
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? start;
+        const before = input.value.slice(0, start);
+        const after = input.value.slice(end);
+        input.value = before + text + after;
+        const nextPos = start + text.length;
+        input.setSelectionRange(nextPos, nextPos);
+        this._filter();
+        input.dispatchEvent(new Event('input', { bubbles: true }));
       }
 
       getQuery() {
