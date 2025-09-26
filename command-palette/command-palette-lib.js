@@ -57,8 +57,7 @@
   
       .header svg { width: 16px; height: 16px; color: #64748b; }
   
-      .header input,
-      .header textarea {
+      input[type="text"] {
         flex: 1;
         border: none;
         font-size: 15px;
@@ -66,12 +65,9 @@
         outline: none;
         background: transparent;
         color: inherit;
-        resize: none;
-        height: 24px;
       }
-
-      .header input::placeholder,
-      .header textarea::placeholder { color: #94a3b8; }
+  
+      input[type="text"]::placeholder { color: #94a3b8; }
   
       .list {
         overflow-y: auto;
@@ -326,21 +322,15 @@
           </svg>
         `;
   
-        this.input = document.createElement('textarea');
-        this.input.rows = 1;
+        this.input = document.createElement('input');
+        this.input.type = 'text';
         this.input.placeholder = this.config.placeholder;
         this.input.autocomplete = 'off';
         this.input.spellcheck = false;
         this.input.autocapitalize = 'none';
         this.input.setAttribute('autocorrect', 'off');
         this.input.setAttribute('inputmode', 'text');
-        this.input.style.overflow = 'hidden';
-        this.input.addEventListener('input', () => {
-          this.input.style.height = 'auto';
-          this.input.style.height = `${this.input.scrollHeight}px`;
-        });
-        this.input.addEventListener('input', () => this._filter());
-        this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
+  
         header.appendChild(this.input);
   
         this.list = document.createElement('div');
@@ -404,6 +394,7 @@
   
         this.input.addEventListener('input', () => this._filter());
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
+        this.input.addEventListener('keypress', (e) => this._handleInputPress(e));
         this.list.addEventListener('mousedown', (e) => this._handleClick(e));
 
         this.previewPrimaryButton.addEventListener('click', () => {
@@ -559,6 +550,14 @@
         if (event.key === 'Tab') {
           event.preventDefault();
           this._moveSelection(event.shiftKey ? -1 : 1);
+        }
+      }
+
+      _handleInputPress(event) {
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          event.preventDefault();
+          this._insertIntoInput(' ');
         }
       }
   
@@ -820,6 +819,24 @@
   
         this.activeIndex = this.filteredItems.length ? 0 : -1;
         this._highlightActive();
+      }
+
+      _insertIntoInput(text) {
+        const input = this.input;
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? start;
+        const before = input.value.slice(0, start);
+        const after = input.value.slice(end);
+        input.value = before + text + after;
+        const nextPos = start + text.length;
+        input.setSelectionRange(nextPos, nextPos);
+        this._filter();
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        console.log('Cmd Logs: Inserted into palette input', { before, text, after });
+      }
+
+      getQuery() {
+        return this.currentQuery || '';
       }
   
       _highlightActive(scrollIntoView = false) {
