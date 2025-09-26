@@ -512,6 +512,12 @@
       }
   
       _handleInputKeys(event) {
+        const keyLower = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+        if ((event.metaKey || event.ctrlKey) && keyLower === this.config.toggleKey) {
+          event.preventDefault();
+          return;
+        }
+
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           this._moveSelection(1);
@@ -521,6 +527,21 @@
         if (event.key === 'ArrowUp') {
           event.preventDefault();
           this._moveSelection(-1);
+          return;
+        }
+
+        if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const input = this.input;
+          const start = input.selectionStart ?? input.value.length;
+          const end = input.selectionEnd ?? start;
+          const before = input.value.slice(0, start);
+          const after = input.value.slice(end);
+          input.value = `${before} ${after}`;
+          const nextPos = start + 1;
+          input.setSelectionRange(nextPos, nextPos);
+          this._filter();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          event.preventDefault();
           return;
         }
 
