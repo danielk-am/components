@@ -93,35 +93,57 @@
       });
       target.dispatchEvent(beforeEvent);
 
-      let insertedWithExecCommand = false;
-      try {
-        if (asHtml) {
-          insertedWithExecCommand = doc.execCommand && doc.execCommand('insertHTML', false, String(text));
-        } else {
-          insertedWithExecCommand = doc.execCommand && doc.execCommand('insertText', false, String(text));
-        }
-      } catch (error) {
-        insertedWithExecCommand = false;
-      }
-
       let success = false;
-      if (insertedWithExecCommand && (asHtml ? wasHtmlInserted(target, text) : wasTextInserted(target, text))) {
-        logger?.('Inserted via document.execCommand.', 'log');
-        success = true;
-      } else {
-        if (insertedWithExecCommand) {
-          logger?.('execCommand reported success but content did not change; falling back.', 'warn');
-        }
-        if (asHtml) {
-          // Try clipboard paste fallback first for better editor compatibility
-          success = tryPasteHtml(target, text, logger) || appendHtmlFragmentFallback(target, text, logger);
+      let method = 'fragment';
+
+      if (asHtml) {
+        // Prefer ClipboardEvent paste first for Zendesk editor compatibility
+        success = tryPasteHtml(target, text, logger);
+        if (success) {
+          method = 'clipboard-paste';
         } else {
+          // Fallback to execCommand, then DOM fragment append
+          let insertedWithExecCommand = false;
+          try {
+            insertedWithExecCommand = doc.execCommand && doc.execCommand('insertHTML', false, String(text));
+          } catch (_) {
+            insertedWithExecCommand = false;
+          }
+          if (insertedWithExecCommand && wasHtmlInserted(target, text)) {
+            logger?.('Inserted via document.execCommand.', 'log');
+            success = true;
+            method = 'execCommand';
+          } else {
+            if (insertedWithExecCommand) {
+              logger?.('execCommand reported success but content did not change; falling back.', 'warn');
+            }
+            success = appendHtmlFragmentFallback(target, text, logger);
+            method = 'fragment';
+          }
+        }
+      } else {
+        // Plain text path: try execCommand first, then fragment fallback
+        let insertedWithExecCommand = false;
+        try {
+          insertedWithExecCommand = doc.execCommand && doc.execCommand('insertText', false, String(text));
+        } catch (_) {
+          insertedWithExecCommand = false;
+        }
+        if (insertedWithExecCommand && wasTextInserted(target, text)) {
+          logger?.('Inserted via document.execCommand.', 'log');
+          success = true;
+          method = 'execCommand';
+        } else {
+          if (insertedWithExecCommand) {
+            logger?.('execCommand reported success but content did not change; falling back.', 'warn');
+          }
           success = appendFragmentFallback(target, text, logger);
+          method = 'fragment';
         }
       }
 
       dispatchInput(target, text);
-      return { success, method: success && insertedWithExecCommand ? 'execCommand' : 'fragment' };
+      return { success, method };
     } catch (error) {
       logger?.(`Failed to insert into contenteditable: ${error.message}`, 'warn');
       return { success: false, method: 'error' };
