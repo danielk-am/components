@@ -381,11 +381,9 @@
         this.preview.className = 'preview';
         this.preview.dataset.visible = 'false';
 
-        // Ensure interactions inside preview do not bubble to list/input handlers
-        const stop = (e) => e.stopPropagation();
-        this.preview.addEventListener('mousedown', stop, true);
-        this.preview.addEventListener('click', stop, true);
-        this.preview.addEventListener('keydown', stop, true);
+        // Prevent list selection on press while allowing button clicks/Enter to work
+        const stopPress = (e) => e.stopPropagation();
+        this.preview.addEventListener('mousedown', stopPress, true);
 
         const previewHeader = document.createElement('div');
         previewHeader.className = 'preview-header';
