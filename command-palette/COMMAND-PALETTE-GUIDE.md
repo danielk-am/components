@@ -63,7 +63,7 @@ Add additional cases inside `handleUtilityAction` if you need bespoke behaviour.
 
 ## 7. Testing Checklist
 
-- [ ] Palette opens with `Ctrl+/` or `Cmd+/` on any editor.
+- [ ] Palette opens with `Cmd+K` (macOS) or `Ctrl+K` (Windows/Linux) on any editor.
 - [ ] Static snippets preview and insert correctly.
 - [ ] AI commands hit the webhook and fall back gracefully.
 - [ ] Utility actions run without errors.

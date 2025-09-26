@@ -57,7 +57,7 @@
   
       .header svg { width: 16px; height: 16px; color: #64748b; }
   
-      input[type="search"] {
+      input[type="text"] {
         flex: 1;
         border: none;
         font-size: 15px;
@@ -67,7 +67,7 @@
         color: inherit;
       }
   
-      input[type="search"]::placeholder { color: #94a3b8; }
+      input[type="text"]::placeholder { color: #94a3b8; }
   
       .list {
         overflow-y: auto;
@@ -323,10 +323,13 @@
         `;
   
         this.input = document.createElement('input');
-        this.input.type = 'search';
+        this.input.type = 'text';
         this.input.placeholder = this.config.placeholder;
         this.input.autocomplete = 'off';
         this.input.spellcheck = false;
+        this.input.autocapitalize = 'none';
+        this.input.setAttribute('autocorrect', 'off');
+        this.input.setAttribute('inputmode', 'text');
   
         header.appendChild(this.input);
   
@@ -506,8 +509,34 @@
           event.preventDefault();
           this._moveSelection(-1);
         } else if (event.key === 'Enter') {
+          const queryRaw = this.input.value;
+          const query = queryRaw.trim();
+          const modifierSubmit = (event.metaKey || event.ctrlKey) && query;
+
+          if (modifierSubmit) {
+            event.preventDefault();
+            this.dispatchEvent(
+              new CustomEvent('he:submit', {
+                detail: { query, queryRaw, via: 'modifier-enter' },
+                bubbles: true,
+                composed: true,
+              })
+            );
+            return;
+          }
+
           event.preventDefault();
-          this._activate();
+          if (this.filteredItems.length && this.activeIndex >= 0) {
+            this._activate();
+          } else if (query) {
+            this.dispatchEvent(
+              new CustomEvent('he:submit', {
+                detail: { query, queryRaw, via: 'empty' },
+                bubbles: true,
+                composed: true,
+              })
+            );
+          }
         } else if (event.key === 'Tab') {
           event.preventDefault();
           this._moveSelection(event.shiftKey ? -1 : 1);
@@ -725,7 +754,9 @@
       }
   
       _filter() {
-        const term = this.input.value.trim();
+        const raw = this.input.value;
+        const term = raw.trim();
+        this.currentQuery = raw;
         this.filteredItems = [];
   
         this.items.forEach((entry) => {
@@ -768,6 +799,10 @@
   
         this.activeIndex = this.filteredItems.length ? 0 : -1;
         this._highlightActive();
+      }
+
+      getQuery() {
+        return this.currentQuery || '';
       }
   
       _highlightActive(scrollIntoView = false) {
