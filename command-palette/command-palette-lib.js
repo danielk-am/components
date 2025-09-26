@@ -12,6 +12,8 @@
       placeholder: 'Type to search…',
       emptyState: 'No results found.',
       iconSize: 18,
+      closeOnBackdrop: true,
+      backdropOpacity: 0.6,
     };
   
     const CSS = `
@@ -20,17 +22,20 @@
         inset: 0;
         display: none;
         place-content: center;
-        background: rgba(17, 24, 39, 0.6);
+        background: var(--cp-backdrop-color, rgba(17, 24, 39, 0.6));
         z-index: 2147483000;
         font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         color: #0f172a;
+        padding: 4rem;
+        box-sizing: border-box;
+        overflow: auto;
       }
   
       :host([open]) { display: grid; }
   
       .palette {
-        width: var(--cp-width);
-        max-width: calc(100vw - 32px);
+        width: min(var(--cp-width), calc(100vw - 8rem));
+        max-width: min(var(--cp-width), calc(100vw - 8rem));
         background: white;
         border-radius: 14px;
         box-shadow:
@@ -39,6 +44,7 @@
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        max-height: min(var(--cp-max-height), calc(100vh - 8rem));
       }
   
         .header {
@@ -294,12 +300,18 @@
   
         this.config = { ...DEFAULT_OPTIONS, ...options };
         this.dataset.state = 'closed';
+
+        const backdropOpacity = Number.isFinite(this.config.backdropOpacity)
+          ? Math.min(1, Math.max(0, this.config.backdropOpacity))
+          : DEFAULT_OPTIONS.backdropOpacity;
+        this.style.setProperty('--cp-backdrop-color', `rgba(17, 24, 39, ${backdropOpacity})`);
   
         const root = document.createElement('div');
         root.className = 'palette';
         root.style.setProperty('--cp-width', `${this.config.width}px`);
         root.style.setProperty('--cp-max-height', `${this.config.maxHeight}px`);
         root.style.setProperty('--cp-icon-size', `${this.config.iconSize}px`);
+        this._container = root;
   
         const header = document.createElement('div');
         header.className = 'header';
@@ -402,11 +414,17 @@
         });
 
         this._previewPlainText = '';
+
+        this.shadowRoot.addEventListener('pointerdown', (event) => {
+          if (!this.config.closeOnBackdrop || this.dataset.state !== 'open') return;
+          if (event.composedPath().includes(this._container)) return;
+          event.preventDefault();
+          this.close();
+        });
       }
   
       connectedCallback() {
         document.addEventListener('keydown', this._shortcutHandler, true);
-        document.body.appendChild(this);
       }
   
       disconnectedCallback() {
@@ -456,8 +474,11 @@
         const toggleKey = typeof this.config.toggleKey === 'string' ? this.config.toggleKey.toLowerCase() : this.config.toggleKey;
         if (eventKey !== toggleKey) return;
 
-        if (this.config.toggleModifier && !event[this.config.toggleModifier]) return;
-        if (this.config.secondaryModifier && !event[this.config.secondaryModifier]) return;
+        const modifiers = [this.config.toggleModifier, this.config.secondaryModifier].filter(Boolean);
+        if (modifiers.length) {
+          const hasMatch = modifiers.some((modifier) => event[modifier]);
+          if (!hasMatch) return;
+        }
 
         if (!this.config.allowInInputs) {
           const target = event.target;

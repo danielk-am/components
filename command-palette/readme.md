@@ -4,7 +4,7 @@ Centralised userscript that adds a configurable command palette to Zendesk. It a
 
 ## Features
 
-- Unified palette toggle (`Ctrl+/` or `Cmd+/`) everywhere in the agent UI.
+- Unified palette toggle (`Cmd+K` on macOS, `Ctrl+K` on Windows/Linux) everywhere in the agent UI.
 - Static snippets with preview, copy, and insert actions.
 - AI-enabled commands that call configurable webhooks with fallback text.
 - Streaming AI preview with graceful fallback to full responses.
@@ -33,7 +33,7 @@ Reload Zendesk to apply changes.
 
 ### 3. Use the Palette
 
-Press `Ctrl+/` (Windows/Linux) or `Cmd+/` (macOS) to open. Type to filter commands, use arrow keys to navigate, and press `Enter` to trigger.
+Press `Cmd+K` (macOS) or `Ctrl+K` (Windows/Linux) to open. Type to filter commands, use arrow keys to navigate, and press `Enter` to trigger.
 
 ## Folder Structure
 
@@ -128,34 +128,4 @@ When `CONFIG.catalog.url` is set, the script expects the endpoint to return JSON
 
 ### Supported Command Types
 
-- `static` / `snippet`: Provide a `body` field (plain text/markdown) and optional `insertMode`.
-- `webhook` / `ai`: Provide a `prompt`, plus either `webhookKey` (lookup in `CONFIG.webhooks`) or an inline `webhook` object `{ url, headers, timeoutMs, fallback, payload }`.
-- `utility` / `tool`: Provide either `href` + `target`, an `action` (e.g. `reload`, `copy-url`), or implement custom logic inside the userscript.
-
-### Optional Fields
-
-- `tags`: Array of strings used to improve filtering.
-- `shortcut`: Display text for command hinting.
-- `fallback`: Array of strings shown when the webhook is unavailable (command-level).
-- `metadata`: Object merged into the request metadata payload.
-- `payload`: Extra JSON object sent under `payload` alongside the prompt.
-
-## Shared Utility Modules
-
-Each helper script attaches utilities to the `window` namespace so other Zendesk userscripts can reuse them without copy/pasting:
-
-```javascript
-// ==UserScript==
-// @require https://raw.githubusercontent.com/danielk-am/components/refs/heads/main/command-palette/command-palette-lib.js
-// @require https://raw.githubusercontent.com/danielk-am/components/refs/heads/main/command-palette/command-palette-ai-stream-utils.js
-// @require https://raw.githubusercontent.com/danielk-am/components/refs/heads/main/command-palette/command-palette-zendesk-editor-utils.js
-// @require https://raw.githubusercontent.com/danielk-am/components/refs/heads/main/command-palette/command-palette-text-insertion-utils.js
-// ==/UserScript==
-```
-
-- `AIStreamUtils.tryHandleStreamingResponse(response, handlers)` handles NDJSON/SSE streams and surfaces decoded chunks.
-- `ZendeskEditorUtils.createEditorState()` + `captureCurrentEditable()` keep track of the focused composer and ticket ID.
-- `TextInsertionUtils.insertText(target, text, { mode })` performs resilient insertion for both CKEditor and plain inputs.
-
-Import the helpers in any future Zendesk scripts to keep behaviours consistent (e.g., autosuggest, macros, QA tooling).
-
+- `static` / `snippet`: Provide a `body` field (plain text/markdown) and optional `
