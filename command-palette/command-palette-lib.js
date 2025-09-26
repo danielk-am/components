@@ -8,7 +8,7 @@
       secondaryModifier: null,
       allowInInputs: true,
       width: 640,
-      maxHeight: 800,
+      maxHeight: 100,
       placeholder: 'Type to search…',
       emptyState: 'No results found.',
       iconSize: 18,
@@ -45,7 +45,7 @@
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        max-height: min(var(--cp-max-height), calc(100vh - 8rem));
+        max-height: min(--webkit-fill-available), calc(100vh - 8rem));
       }
   
         .header {
