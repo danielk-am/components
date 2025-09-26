@@ -437,6 +437,18 @@
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
         this.list.addEventListener('mousedown', (e) => this._handleClick(e));
 
+        // Capture Enter anywhere in the shadow root when preview is visible
+        this.shadowRoot.addEventListener('keydown', (event) => {
+          if (this.preview?.dataset?.visible !== 'true') return;
+          if (event.key !== 'Enter') return;
+          if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (typeof this._previewPrimaryHandler === 'function') {
+            try { this._previewPrimaryHandler(); } catch (err) { console.error('Preview primary action error:', err); }
+          }
+        }, true);
+
         this.previewPrimaryButton.addEventListener('click', () => {
           if (typeof this._previewPrimaryHandler === 'function') {
             try {
