@@ -8,7 +8,7 @@
       secondaryModifier: null,
       allowInInputs: true,
       width: 640,
-      maxHeight: --webkit-fill-available,
+      maxHeight: '--webkit-fill-available',
       placeholder: 'Type to search…',
       emptyState: 'No results found.',
       iconSize: 18,
