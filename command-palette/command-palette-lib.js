@@ -64,13 +64,14 @@
       .header textarea {
         flex: 1;
         border: none;
+        font-family: inherit;
         font-size: 15px;
         font-weight: 500;
         outline: none;
         background: transparent;
         color: inherit;
         resize: none;
-        height: 24px;
+        height: 1rem;
       }
 
       .header input::placeholder,
@@ -387,11 +388,7 @@
         this.input.setAttribute('autocorrect', 'off');
         this.input.setAttribute('inputmode', 'text');
         this.input.style.overflow = 'hidden';
-        this.input.addEventListener('input', () => {
-          this.input.style.height = 'auto';
-          this.input.style.height = `${this.input.scrollHeight}px`;
-        });
-        this.input.addEventListener('input', () => this._filter());
+        this.input.addEventListener('input', () => this._handleQueryInput());
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
         header.appendChild(this.input);
   
@@ -454,6 +451,8 @@
         this.filteredItems = [];
         this.activeIndex = -1;
         this.paletteData = [];
+        this._lastQuery = '';
+        this._filterRAF = 0;
         this._boundKeyHandler = this._handleKey.bind(this);
         this._shortcutHandler = this._toggleFromShortcut.bind(this);
         this._previewPrimaryHandler = null;
@@ -531,7 +530,10 @@
         if (this.hasAttribute('open')) return;
         this.setAttribute('open', '');
         this.dataset.state = 'open';
-        this.input.value = '';
+        const query = typeof this._lastQuery === 'string' ? this._lastQuery : '';
+        this.input.value = query;
+        this.input.style.height = 'auto';
+        this.input.style.height = `${this.input.scrollHeight}px`;
         this._filter();
         requestAnimationFrame(() => {
           this.input.focus();
@@ -548,6 +550,10 @@
         if (!this.hasAttribute('open')) return;
         this.removeAttribute('open');
         this.dataset.state = 'closed';
+        if (this._filterRAF) {
+          cancelAnimationFrame(this._filterRAF);
+          this._filterRAF = 0;
+        }
         this.activeIndex = -1;
         this._highlightActive();
         document.removeEventListener('keydown', this._boundKeyHandler, true);
@@ -565,6 +571,22 @@
         }
       }
   
+      _handleQueryInput() {
+        if (!this.input) return;
+        this.input.style.height = 'auto';
+        this.input.style.height = `${this.input.scrollHeight}px`;
+        this._lastQuery = this.input.value;
+        this._scheduleFilter();
+      }
+
+      _scheduleFilter() {
+        if (this._filterRAF) return;
+        this._filterRAF = requestAnimationFrame(() => {
+          this._filterRAF = 0;
+          this._filter();
+        });
+      }
+
       /**
        * Handles the global keyboard shortcut listeners bound on the document to toggle the palette.
        *
@@ -600,6 +622,12 @@
       _handleKey(event) {
         if (event.key === 'Escape') {
           event.stopPropagation();
+          this._lastQuery = '';
+          if (this.input) {
+            this.input.value = '';
+            this.input.style.height = 'auto';
+            this.input.style.height = `${this.input.scrollHeight}px`;
+          }
           this.close();
         }
       }
@@ -809,6 +837,46 @@
       }
 
       /**
+       * Appends plain text to the existing preview without forcing a full HTML diff.
+       *
+       * @param {string} text - Text chunk to append.
+       * @param {Object} [options={}] - Additional options.
+       * @param {boolean} [options.smooth=true] - Smooth scroll to bottom when the user is anchored.
+       * @returns {CommandPalette} Fluent reference to the palette instance.
+       */
+      appendPreviewText(text, { smooth = true } = {}) {
+        if (!text) return this;
+        const container = this.previewContent;
+        if (!container) return this;
+
+        const stickToBottom = Math.abs(container.scrollHeight - (container.scrollTop + container.clientHeight)) < 4;
+        const fragment = document.createDocumentFragment();
+        const lines = String(text).split('\n');
+
+        lines.forEach((line, index) => {
+          fragment.appendChild(document.createTextNode(line));
+          if (index < lines.length - 1) {
+            fragment.appendChild(document.createElement('br'));
+          }
+        });
+
+        container.appendChild(fragment);
+
+        this._previewPlainText = `${this._previewPlainText}${text}`;
+        this._lastPreviewHTML = container.innerHTML;
+
+        if (stickToBottom) {
+          if (smooth) {
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+          } else {
+            container.scrollTop = container.scrollHeight;
+          }
+        }
+
+        return this;
+      }
+
+      /**
        * Hides the preview pane, optionally clearing rendered content and handlers.
        *
        * @param {boolean} [clearContent=false] - When true, purge the preview content.
@@ -993,6 +1061,13 @@
        * Filters palette items using the current input value and updates the DOM.
        */
       _filter() {
+        if (this._filterRAF) {
+          cancelAnimationFrame(this._filterRAF);
+          this._filterRAF = 0;
+        }
+        if (this.input) {
+          this._lastQuery = this.input.value;
+        }
         const raw = this.input.value;
         const term = raw.trim();
         this.currentQuery = raw;
