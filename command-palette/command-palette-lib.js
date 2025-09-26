@@ -554,7 +554,8 @@
       }
 
       _handleInputPress(event) {
-        if (event.key === ' ' || event.key === 'Spacebar') {
+        if (event.defaultPrevented) return;
+        if (event.key === ' ' || event.key === 'Space' || event.key === 'Spacebar' || event.code === 'Space') {
           if (event.ctrlKey || event.metaKey || event.altKey) return;
           event.preventDefault();
           this._insertIntoInput(' ');
@@ -832,7 +833,7 @@
         input.setSelectionRange(nextPos, nextPos);
         this._filter();
         input.dispatchEvent(new Event('input', { bubbles: true }));
-        console.log('Cmd Logs: Inserted into palette input', { before, text, after });
+        console.log('Cmd Logs: Palette space inserted');
       }
 
       getQuery() {
