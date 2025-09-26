@@ -9,6 +9,8 @@
       allowInInputs: true,
       width: 640,
       maxHeight: 100,
+      listHeight: 320,
+      previewHeight: 260,
       placeholder: 'Type to search…',
       emptyState: 'No results found.',
       iconSize: 18,
@@ -45,7 +47,7 @@
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        max-height: min(--webkit-fill-available), calc(100vh - 8rem));
+        max-height: min(-webkit-fill-available, calc(100vh - 8rem));
       }
   
         .header {
@@ -76,7 +78,7 @@
   
       .list {
         overflow-y: auto;
-        max-height: var(--cp-max-height);
+        height: var(--cp-list-height);
         padding: 10px 4px 12px;
         scrollbar-width: thin;
       }
@@ -120,6 +122,10 @@
           background: #f8fafc;
           padding: 16px 18px;
           gap: 12px;
+          /* Fix height to avoid layout shift while streaming */
+          flex: 0 0 var(--cp-preview-height);
+          height: var(--cp-preview-height);
+          overflow: hidden;
         }
 
         .preview[data-visible="true"] {
@@ -173,8 +179,14 @@
           font-size: 13px;
           line-height: 1.5;
           color: #1f2937;
-          max-height: 260px;
+          /* Fill preview container and scroll internally to prevent flicker */
+          flex: 1;
           overflow-y: auto;
+          /* Reduce repaint jitter during frequent updates */
+          contain: content;
+          will-change: transform;
+          transform: translateZ(0);
+          overflow-anchor: none;
         }
 
         .preview-content p {
@@ -314,7 +326,8 @@
         const root = document.createElement('div');
         root.className = 'palette';
         root.style.setProperty('--cp-width', `${this.config.width}px`);
-        root.style.setProperty('--cp-max-height', '--webkit-fill-available');
+        root.style.setProperty('--cp-list-height', `${this.config.listHeight}px`);
+        root.style.setProperty('--cp-preview-height', `${this.config.previewHeight}px`);
         root.style.setProperty('--cp-icon-size', `${this.config.iconSize}px`);
         this._container = root;
   
@@ -428,6 +441,8 @@
         });
 
         this._previewPlainText = '';
+        this._previewUpdateRAF = 0;
+        this._lastPreviewHTML = '';
 
         this.shadowRoot.addEventListener('pointerdown', (event) => {
           if (!this.config.closeOnBackdrop || this.dataset.state !== 'open') return;
@@ -612,23 +627,16 @@
         if (!append) {
           this.previewContent.innerHTML = '';
           this._previewPlainText = '';
+          this._lastPreviewHTML = '';
         }
 
         this.previewTitle.textContent = title;
 
         if (html) {
-          if (append) {
-            this.previewContent.insertAdjacentHTML('beforeend', html);
-          } else {
-            this.previewContent.innerHTML = html;
-          }
+          this._schedulePreviewHTMLUpdate(html, append);
         } else if (text) {
           const safe = escapeHTML(text).replace(/\n/g, '<br>');
-          if (append) {
-            this.previewContent.insertAdjacentHTML('beforeend', safe);
-          } else {
-            this.previewContent.innerHTML = safe;
-          }
+          this._schedulePreviewHTMLUpdate(safe, append);
         }
 
         if (text) {
@@ -670,6 +678,11 @@
         if (clearContent) {
           this.previewContent.innerHTML = '';
           this._previewPlainText = '';
+          this._lastPreviewHTML = '';
+          if (this._previewUpdateRAF) {
+            cancelAnimationFrame(this._previewUpdateRAF);
+            this._previewUpdateRAF = 0;
+          }
         }
         this.previewPrimaryButton.hidden = true;
         this.previewSecondaryButton.hidden = true;
@@ -680,6 +693,41 @@
 
       getPreviewText() {
         return this._previewPlainText || this.previewContent.textContent || '';
+      }
+
+      /**
+       * Schedules a diff-aware update to the preview content to minimize flicker during streaming.
+       * - If the new HTML starts with the previous content, only the delta is appended.
+       * - Otherwise, replaces the content once per animation frame.
+       * - Preserves scroll position, auto-sticks to bottom when already at bottom.
+       */
+      _schedulePreviewHTMLUpdate(newHTML, append) {
+        const container = this.previewContent;
+        if (this._previewUpdateRAF) {
+          cancelAnimationFrame(this._previewUpdateRAF);
+          this._previewUpdateRAF = 0;
+        }
+
+        const prevHTML = append ? (this._lastPreviewHTML || container.innerHTML) : container.innerHTML;
+
+        this._previewUpdateRAF = requestAnimationFrame(() => {
+          const stickToBottom = Math.abs(container.scrollHeight - (container.scrollTop + container.clientHeight)) < 4;
+
+          if (append && newHTML && newHTML.startsWith(prevHTML)) {
+            const delta = newHTML.slice(prevHTML.length);
+            if (delta) {
+              container.insertAdjacentHTML('beforeend', delta);
+            }
+          } else {
+            container.innerHTML = newHTML || '';
+          }
+
+          this._lastPreviewHTML = container.innerHTML;
+          if (stickToBottom) {
+            container.scrollTop = container.scrollHeight;
+          }
+          this._previewUpdateRAF = 0;
+        });
       }
   
       _moveSelection(delta) {
