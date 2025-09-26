@@ -92,8 +92,7 @@
       }
 
       .palette[data-mode="preview"] .preview {
-        outline: 2px solid #4f46e5;
-        outline-offset: -2px;
+
       }
 
         .status {
@@ -381,6 +380,12 @@
         this.preview = document.createElement('div');
         this.preview.className = 'preview';
         this.preview.dataset.visible = 'false';
+
+        // Ensure interactions inside preview do not bubble to list/input handlers
+        const stop = (e) => e.stopPropagation();
+        this.preview.addEventListener('mousedown', stop, true);
+        this.preview.addEventListener('click', stop, true);
+        this.preview.addEventListener('keydown', stop, true);
 
         const previewHeader = document.createElement('div');
         previewHeader.className = 'preview-header';
