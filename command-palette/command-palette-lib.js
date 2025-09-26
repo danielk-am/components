@@ -394,6 +394,7 @@
   
         this.input.addEventListener('input', () => this._filter());
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
+        this.input.addEventListener('keypress', (e) => this._handleInputPress(e));
         this.list.addEventListener('mousedown', (e) => this._handleClick(e));
 
         this.previewPrimaryButton.addEventListener('click', () => {
@@ -514,13 +515,6 @@
           return;
         }
 
-        if (event.key === ' ' || event.code === 'Space') {
-          if (event.ctrlKey || event.metaKey || event.altKey) return;
-          event.preventDefault();
-          this._insertIntoInput(' ');
-          return;
-        }
-
         if (event.key === 'Enter') {
           const queryRaw = this.input.value;
           const query = queryRaw.trim();
@@ -556,6 +550,14 @@
         if (event.key === 'Tab') {
           event.preventDefault();
           this._moveSelection(event.shiftKey ? -1 : 1);
+        }
+      }
+
+      _handleInputPress(event) {
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          if (event.ctrlKey || event.metaKey || event.altKey) return;
+          event.preventDefault();
+          this._insertIntoInput(' ');
         }
       }
   
@@ -633,32 +635,24 @@
           this._previewPlainText = this.previewContent.textContent || '';
         }
 
-        const shouldUpdatePrimary = primary !== undefined;
-        if (shouldUpdatePrimary) {
-          if (primary && typeof primary === 'object') {
-            this.previewPrimaryButton.textContent = primary.label || 'Use result';
-            this.previewPrimaryButton.hidden = false;
-            this._previewPrimaryHandler = primary.onClick || null;
-          } else {
-            this.previewPrimaryButton.hidden = true;
-            this._previewPrimaryHandler = null;
-          }
-        } else if (!append && !this._previewPrimaryHandler) {
+        const shouldUpdatePrimary = primary !== undefined || !append;
+        if (primary && typeof primary === 'object') {
+          this.previewPrimaryButton.textContent = primary.label || 'Use result';
+          this.previewPrimaryButton.hidden = false;
+          this._previewPrimaryHandler = primary.onClick || null;
+        } else if (shouldUpdatePrimary) {
           this.previewPrimaryButton.hidden = true;
+          this._previewPrimaryHandler = null;
         }
 
-        const shouldUpdateSecondary = secondary !== undefined;
-        if (shouldUpdateSecondary) {
-          if (secondary && typeof secondary === 'object') {
-            this.previewSecondaryButton.textContent = secondary.label || 'Copy';
-            this.previewSecondaryButton.hidden = false;
-            this._previewSecondaryHandler = secondary.onClick || null;
-          } else {
-            this.previewSecondaryButton.hidden = true;
-            this._previewSecondaryHandler = null;
-          }
-        } else if (!append && !this._previewSecondaryHandler) {
+        const shouldUpdateSecondary = secondary !== undefined || !append;
+        if (secondary && typeof secondary === 'object') {
+          this.previewSecondaryButton.textContent = secondary.label || 'Copy';
+          this.previewSecondaryButton.hidden = false;
+          this._previewSecondaryHandler = secondary.onClick || null;
+        } else if (shouldUpdateSecondary) {
           this.previewSecondaryButton.hidden = true;
+          this._previewSecondaryHandler = null;
         }
 
         this.preview.dataset.visible = 'true';
@@ -838,6 +832,7 @@
         input.setSelectionRange(nextPos, nextPos);
         this._filter();
         input.dispatchEvent(new Event('input', { bubbles: true }));
+        console.log('Cmd Logs: Inserted into palette input', { before, text, after });
       }
 
       getQuery() {
