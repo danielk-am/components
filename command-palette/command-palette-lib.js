@@ -8,7 +8,7 @@
       secondaryModifier: null,
       allowInInputs: true,
       width: 640,
-      maxHeight: 440,
+      maxHeight: --webkit-fill-available,
       placeholder: 'Type to search…',
       emptyState: 'No results found.',
       iconSize: 18,
@@ -314,7 +314,7 @@
         const root = document.createElement('div');
         root.className = 'palette';
         root.style.setProperty('--cp-width', `${this.config.width}px`);
-        root.style.setProperty('--cp-max-height', `${this.config.maxHeight}px`);
+        root.style.setProperty('--cp-max-height', `${this.config.maxHeight}`);
         root.style.setProperty('--cp-icon-size', `${this.config.iconSize}px`);
         this._container = root;
   
