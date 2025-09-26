@@ -21,11 +21,17 @@ CONFIG = {
     headers: { … },
     cacheMs: 300000,
     fallback: [ … ]
+  },
+  context: {
+    includeTicket: true,
+    includeConversation: true,
+    includeSidebar: true,
+    includePageData: true,
   }
 };
 ```
 
-Modify these sections rather than editing the helper logic below. The script loads `catalog.url` when present and falls back to `catalog.fallback` (an array of groups) if the request fails or the URL is blank.
+Modify these sections rather than editing the helper logic below. The script loads `catalog.url` when present and falls back to `catalog.fallback` (an array of groups) if the request fails or the URL is blank. Use `context` to opt in/out of specific Zendesk artefacts (ticket JSON, conversation log, SSR/sidebar data, heCollector output) that are attached to every webhook payload.
 
 ## 3. Palette Behaviour
 

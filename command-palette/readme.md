@@ -10,6 +10,7 @@ Centralised userscript that adds a configurable command palette to Zendesk. It a
 - Streaming AI preview with graceful fallback to full responses.
 - Utility actions for navigation, page refreshes, and external resources.
 - Shadow DOM encapsulated UI via the shared `HeCommandPalette` web component.
+- Automatic attachment of Zendesk ticket context (ticket JSON, conversation log, SSR/sidebar data) to webhook payloads.
 
 ## Quick Start
 
@@ -26,6 +27,7 @@ Open `zendesk--cmd.user.js` and update the top-level `CONFIG` object:
 - `palette`: Shortcut and UI behaviour.
 - `webhooks`: Optional shared webhook definitions that commands can reference via `webhookKey`.
 - `catalog`: Remote command source. Provide a JSON endpoint in `catalog.url` or rely on the bundled `catalog.fallback` groups if the endpoint is blank/offline.
+- `context`: Toggle which Zendesk artefacts are fetched and attached to webhook payloads (ticket JSON, conversation log, SSR/sidebar data, heCollector page data).
 
 Reload Zendesk to apply changes. The script caches a remote catalog for five minutes by default (`catalog.cacheMs`).
 
@@ -129,3 +131,14 @@ When `CONFIG.catalog.url` is set, the script expects the endpoint to return JSON
 ### Supported Command Types
 
 - `static` / `snippet`: Provide a `body` field (plain text/markdown) and optional `
+
+## Webhook Payload Context
+
+Every webhook call now includes a `context` object when the relevant data is available (toggled via `CONFIG.context`):
+
+- `ticket`: Raw response from `/api/v2/tickets/{id}.json?include=metric_set,groups,users,organizations,custom_fields`.
+- `conversation`: Recent conversation log with agent/end-user names and the latest customer message.
+- `additional.ssr`: Contents of the ticket SSR/notes panel when visible.
+- `additional.pageData`: Output from `window.heCollector.scrapePage()` when that helper is present.
+
+Use this payload to enrich AI prompts on the server side without additional Zendesk lookups.
