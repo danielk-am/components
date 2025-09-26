@@ -19,7 +19,7 @@
   }
 
   function insertText(target, text, options = {}) {
-    const { mode = 'caret', onCopyFallback, logger } = options;
+    const { mode = 'caret', onCopyFallback, logger, asHtml = false } = options;
 
     if (!target) {
       if (typeof onCopyFallback === 'function') onCopyFallback(text);
@@ -30,12 +30,14 @@
     const normalizedMode = normalizeInsertMode(mode);
 
     if (isPlainTextInput(target)) {
-      insertIntoPlainTextInput(target, text, normalizedMode);
+      // Plain inputs cannot render HTML; fall back to plaintext
+      const payload = asHtml ? htmlToText(text) : text;
+      insertIntoPlainTextInput(target, payload, normalizedMode);
       logger?.('Inserted via plain-text input.', 'log');
       return { success: true, method: 'input' };
     }
 
-    const result = insertIntoContentEditable(target, text, normalizedMode, logger);
+    const result = insertIntoContentEditable(target, text, normalizedMode, logger, asHtml);
     if (!result.success && typeof onCopyFallback === 'function') {
       onCopyFallback(text);
     }
@@ -69,7 +71,7 @@
     target.focus();
   }
 
-  function insertIntoContentEditable(target, text, mode, logger) {
+  function insertIntoContentEditable(target, text, mode, logger, asHtml) {
     try {
       target.focus();
 
@@ -84,27 +86,31 @@
       const beforeEvent = new InputEvent('beforeinput', {
         bubbles: true,
         cancelable: true,
-        inputType: 'insertText',
+        inputType: asHtml ? 'insertHTML' : 'insertText',
         data: text,
       });
       target.dispatchEvent(beforeEvent);
 
       let insertedWithExecCommand = false;
       try {
-        insertedWithExecCommand = document.execCommand && document.execCommand('insertText', false, text);
+        if (asHtml) {
+          insertedWithExecCommand = document.execCommand && document.execCommand('insertHTML', false, String(text));
+        } else {
+          insertedWithExecCommand = document.execCommand && document.execCommand('insertText', false, String(text));
+        }
       } catch (error) {
         insertedWithExecCommand = false;
       }
 
       let success = false;
-      if (insertedWithExecCommand && wasTextInserted(target, text)) {
+      if (insertedWithExecCommand && (asHtml ? wasHtmlInserted(target, text) : wasTextInserted(target, text))) {
         logger?.('Inserted via document.execCommand.', 'log');
         success = true;
       } else {
         if (insertedWithExecCommand) {
           logger?.('execCommand reported success but content did not change; falling back.', 'warn');
         }
-        success = appendFragmentFallback(target, text, logger);
+        success = asHtml ? appendHtmlFragmentFallback(target, text, logger) : appendFragmentFallback(target, text, logger);
       }
 
       dispatchInput(target, text);
@@ -122,6 +128,17 @@
       return true;
     } catch (error) {
       logger?.(`Fragment append fallback failed: ${error.message}`, 'warn');
+      return false;
+    }
+  }
+
+  function appendHtmlFragmentFallback(target, html, logger) {
+    try {
+      appendedHtml(target, html);
+      logger?.('Inserted via HTML fragment append fallback.', 'log');
+      return true;
+    } catch (error) {
+      logger?.(`HTML fragment append fallback failed: ${error.message}`, 'warn');
       return false;
     }
   }
@@ -150,6 +167,19 @@
     });
 
     target.appendChild(fragment);
+    placeCaretAtEnd(target);
+  }
+
+  function appendedHtml(target, html) {
+    const fragment = htmlToFragment(String(html ?? ''));
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(fragment);
+    } else {
+      target.appendChild(fragment);
+    }
     placeCaretAtEnd(target);
   }
 
@@ -184,6 +214,25 @@
     if (!expected) return true;
     const snapshot = (target.innerText || target.textContent || '').trim();
     return snapshot.includes(expected);
+  }
+
+  function wasHtmlInserted(target, html) {
+    const expected = String(html ?? '').trim();
+    if (!expected) return true;
+    const snapshot = (target.innerHTML || '').trim();
+    return snapshot.includes(expected) || wasTextInserted(target, htmlToText(html));
+  }
+
+  function htmlToFragment(html) {
+    const template = document.createElement('template');
+    template.innerHTML = String(html);
+    return template.content.cloneNode(true);
+  }
+
+  function htmlToText(html) {
+    const div = document.createElement('div');
+    div.innerHTML = String(html);
+    return div.innerText || div.textContent || '';
   }
 
   window.TextInsertionUtils = {
