@@ -73,6 +73,8 @@
 
   function insertIntoContentEditable(target, text, mode, logger, asHtml) {
     try {
+      const doc = target.ownerDocument || document;
+      const win = doc.defaultView || window;
       target.focus();
 
       if (mode === 'replace') {
@@ -83,7 +85,7 @@
         placeCaretAtStart(target);
       }
 
-      const beforeEvent = new InputEvent('beforeinput', {
+      const beforeEvent = safeCreateInputEvent(win, 'beforeinput', {
         bubbles: true,
         cancelable: true,
         inputType: asHtml ? 'insertHTML' : 'insertText',
@@ -94,9 +96,9 @@
       let insertedWithExecCommand = false;
       try {
         if (asHtml) {
-          insertedWithExecCommand = document.execCommand && document.execCommand('insertHTML', false, String(text));
+          insertedWithExecCommand = doc.execCommand && doc.execCommand('insertHTML', false, String(text));
         } else {
-          insertedWithExecCommand = document.execCommand && document.execCommand('insertText', false, String(text));
+          insertedWithExecCommand = doc.execCommand && doc.execCommand('insertText', false, String(text));
         }
       } catch (error) {
         insertedWithExecCommand = false;
@@ -162,12 +164,13 @@
   }
 
   function appendedFragment(target, text) {
-    const fragment = document.createDocumentFragment();
+    const doc = target.ownerDocument || document;
+    const fragment = doc.createDocumentFragment();
     const lines = String(text ?? '').split(/\n/);
     lines.forEach((line, index) => {
-      fragment.appendChild(document.createTextNode(line));
+      fragment.appendChild(doc.createTextNode(line));
       if (index < lines.length - 1) {
-        fragment.appendChild(document.createElement('br'));
+        fragment.appendChild(doc.createElement('br'));
       }
     });
 
@@ -190,10 +193,12 @@
 
   function placeCaretAtEnd(element) {
     try {
-      const range = document.createRange();
+      const doc = element.ownerDocument || document;
+      const win = doc.defaultView || window;
+      const range = doc.createRange();
       range.selectNodeContents(element);
       range.collapse(false);
-      const selection = window.getSelection();
+      const selection = win.getSelection();
       selection.removeAllRanges();
       selection.addRange(range);
     } catch (error) {}
@@ -201,10 +206,12 @@
 
   function placeCaretAtStart(element) {
     try {
-      const range = document.createRange();
+      const doc = element.ownerDocument || document;
+      const win = doc.defaultView || window;
+      const range = doc.createRange();
       range.selectNodeContents(element);
       range.collapse(true);
-      const selection = window.getSelection();
+      const selection = win.getSelection();
       selection.removeAllRanges();
       selection.addRange(range);
     } catch (error) {}
@@ -228,8 +235,9 @@
     return snapshot.includes(expected) || wasTextInserted(target, htmlToText(html));
   }
 
-  function htmlToFragment(html) {
-    const template = document.createElement('template');
+  function htmlToFragment(html, docOverride) {
+    const doc = docOverride || document;
+    const template = doc.createElement('template');
     template.innerHTML = String(html);
     return template.content.cloneNode(true);
   }
@@ -242,10 +250,14 @@
 
   function tryPasteHtml(target, html, logger) {
     try {
-      const data = new DataTransfer();
+      const doc = target.ownerDocument || document;
+      const win = doc.defaultView || window;
+      const DataTransferCtor = win.DataTransfer || window.DataTransfer;
+      const ClipboardEventCtor = win.ClipboardEvent || window.ClipboardEvent;
+      const data = new DataTransferCtor();
       data.setData('text/html', String(html));
       data.setData('text/plain', htmlToText(html));
-      const pasteEvent = new ClipboardEvent('paste', {
+      const pasteEvent = new ClipboardEventCtor('paste', {
         bubbles: true,
         cancelable: true,
         clipboardData: data,
@@ -258,6 +270,19 @@
     } catch (error) {
       logger?.(`ClipboardEvent paste fallback failed: ${error.message}`, 'warn');
       return false;
+    }
+  }
+
+  function safeCreateInputEvent(win, type, init) {
+    try {
+      const Ctor = win.InputEvent || window.InputEvent;
+      return new Ctor(type, init);
+    } catch (_) {
+      try {
+        return new Event(type, init);
+      } catch (e) {
+        return new window.Event(type, init);
+      }
     }
   }
 
