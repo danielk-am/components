@@ -545,6 +545,15 @@
       }
   
       _handleInputKeys(event) {
+        // When preview is visible, Enter should not trigger item activation from the list
+        if (this.preview?.dataset?.visible === 'true') {
+          if (event.key === 'Enter' && !(event.shiftKey || event.metaKey || event.ctrlKey || event.altKey)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+        }
+
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           this._moveSelection(1);
