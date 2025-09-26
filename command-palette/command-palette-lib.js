@@ -394,7 +394,6 @@
   
         this.input.addEventListener('input', () => this._filter());
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
-        this.input.addEventListener('keypress', (e) => this._handleInputPress(e));
         this.list.addEventListener('mousedown', (e) => this._handleClick(e));
 
         this.previewPrimaryButton.addEventListener('click', () => {
@@ -550,15 +549,6 @@
         if (event.key === 'Tab') {
           event.preventDefault();
           this._moveSelection(event.shiftKey ? -1 : 1);
-        }
-      }
-
-      _handleInputPress(event) {
-        if (event.defaultPrevented) return;
-        if (event.key === ' ' || event.key === 'Space' || event.key === 'Spacebar' || event.code === 'Space') {
-          if (event.ctrlKey || event.metaKey || event.altKey) return;
-          event.preventDefault();
-          this._insertIntoInput(' ');
         }
       }
   
@@ -820,24 +810,6 @@
   
         this.activeIndex = this.filteredItems.length ? 0 : -1;
         this._highlightActive();
-      }
-
-      _insertIntoInput(text) {
-        const input = this.input;
-        const start = input.selectionStart ?? input.value.length;
-        const end = input.selectionEnd ?? start;
-        const before = input.value.slice(0, start);
-        const after = input.value.slice(end);
-        input.value = before + text + after;
-        const nextPos = start + text.length;
-        input.setSelectionRange(nextPos, nextPos);
-        this._filter();
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        console.log('Cmd Logs: Palette space inserted');
-      }
-
-      getQuery() {
-        return this.currentQuery || '';
       }
   
       _highlightActive(scrollIntoView = false) {
