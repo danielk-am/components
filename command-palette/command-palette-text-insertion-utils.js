@@ -89,32 +89,53 @@
       });
       target.dispatchEvent(beforeEvent);
 
-      let inserted = false;
+      let insertedWithExecCommand = false;
       try {
-        inserted = document.execCommand && document.execCommand('insertText', false, text);
+        insertedWithExecCommand = document.execCommand && document.execCommand('insertText', false, text);
       } catch (error) {
-        inserted = false;
+        insertedWithExecCommand = false;
       }
 
-      if (!inserted) {
-        appendedFragment(target, text);
-        inserted = true;
-        logger?.('execCommand failed; appended fragment instead.', 'warn');
-      } else {
+      let success = false;
+      if (insertedWithExecCommand && wasTextInserted(target, text)) {
         logger?.('Inserted via document.execCommand.', 'log');
+        success = true;
+      } else {
+        if (insertedWithExecCommand) {
+          logger?.('execCommand reported success but content did not change; falling back.', 'warn');
+        }
+        success = appendFragmentFallback(target, text, logger);
       }
 
+      dispatchInput(target, text);
+      return { success, method: success && insertedWithExecCommand ? 'execCommand' : 'fragment' };
+    } catch (error) {
+      logger?.(`Failed to insert into contenteditable: ${error.message}`, 'warn');
+      return { success: false, method: 'error' };
+    }
+  }
+
+  function appendFragmentFallback(target, text, logger) {
+    try {
+      appendedFragment(target, text);
+      logger?.('Inserted via fragment append fallback.', 'log');
+      return true;
+    } catch (error) {
+      logger?.(`Fragment append fallback failed: ${error.message}`, 'warn');
+      return false;
+    }
+  }
+
+  function dispatchInput(target, text) {
+    try {
       const inputEvent = new InputEvent('input', {
         bubbles: true,
         inputType: 'insertText',
         data: text,
       });
       target.dispatchEvent(inputEvent);
-
-      return { success: true, method: inserted ? 'execCommand' : 'fragment' };
     } catch (error) {
-      logger?.(`Failed to insert into contenteditable: ${error.message}`, 'warn');
-      return { success: false, method: 'error' };
+      target.dispatchEvent(new Event('input', { bubbles: true }));
     }
   }
 
@@ -156,6 +177,13 @@
 
   function isPlainTextInput(el) {
     return !!el && ((el.tagName === 'INPUT' && el.type === 'text') || el.tagName === 'TEXTAREA');
+  }
+
+  function wasTextInserted(target, text) {
+    const expected = String(text ?? '').trim();
+    if (!expected) return true;
+    const snapshot = (target.innerText || target.textContent || '').trim();
+    return snapshot.includes(expected);
   }
 
   window.TextInsertionUtils = {
