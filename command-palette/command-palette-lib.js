@@ -797,7 +797,7 @@
           } else {
             element.style.display = 'none';
             delete data._element;
-            delete element.dataset.index;
+            element.removeAttribute('data-index');
           }
         });
   
