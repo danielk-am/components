@@ -397,7 +397,7 @@
 
         this.previewPrimaryButton = document.createElement('button');
         this.previewPrimaryButton.type = 'button';
-        this.previewPrimaryButton.textContent = 'Use result';
+        this.previewPrimaryButton.textContent = 'Insert into editor';
         this.previewPrimaryButton.hidden = true;
 
         this.previewSecondaryButton = document.createElement('button');
@@ -693,7 +693,7 @@
 
         const shouldUpdatePrimary = primary !== undefined || !append;
         if (primary && typeof primary === 'object') {
-          this.previewPrimaryButton.textContent = primary.label || 'Use result';
+          this.previewPrimaryButton.textContent = primary.label || 'Insert into editor';
           this.previewPrimaryButton.hidden = false;
           this._previewPrimaryHandler = primary.onClick || null;
         } else if (shouldUpdatePrimary) {
