@@ -183,6 +183,12 @@
           color: #4f46e5;
         }
 
+      .preview-actions button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: #9aa3e5;
+      }
+
         .preview-content {
           background: #fff;
           border-radius: 10px;
@@ -668,6 +674,7 @@
           append = false,
           primary = undefined,
           secondary = undefined,
+          primaryDisabled = false,
         } = options;
 
         if (!append) {
@@ -691,13 +698,17 @@
           this._previewPlainText = this.previewContent.textContent || '';
         }
 
-        const shouldUpdatePrimary = primary !== undefined || !append;
-        if (primary && typeof primary === 'object') {
-          this.previewPrimaryButton.textContent = primary.label || 'Insert into editor';
+        const shouldUpdatePrimary = (primary !== undefined) || !append || primaryDisabled;
+        if ((primary && typeof primary === 'object') || primaryDisabled) {
+          const label = (primary && primary.label) || 'Insert into editor';
+          const disabled = (primary && primary.disabled === true) || primaryDisabled === true;
+          this.previewPrimaryButton.textContent = label;
           this.previewPrimaryButton.hidden = false;
-          this._previewPrimaryHandler = primary.onClick || null;
+          this.previewPrimaryButton.disabled = !!disabled;
+          this._previewPrimaryHandler = disabled ? null : (primary && primary.onClick) || null;
         } else if (shouldUpdatePrimary) {
           this.previewPrimaryButton.hidden = true;
+          this.previewPrimaryButton.disabled = false;
           this._previewPrimaryHandler = null;
         }
 
