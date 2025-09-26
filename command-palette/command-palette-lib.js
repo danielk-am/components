@@ -314,7 +314,7 @@
         const root = document.createElement('div');
         root.className = 'palette';
         root.style.setProperty('--cp-width', `${this.config.width}px`);
-        root.style.setProperty('--cp-max-height', `--webkit-fill-available`);
+        root.style.setProperty('--cp-max-height', `${this.config.maxHeight}px`);
         root.style.setProperty('--cp-icon-size', `${this.config.iconSize}px`);
         this._container = root;
   
