@@ -21,7 +21,8 @@
         position: fixed;
         inset: 0;
         display: none;
-        place-content: center;
+        /* Anchor near the top and expand downward while staying centered horizontally */
+        place-content: start center;
         background: var(--cp-backdrop-color, rgba(17, 24, 39, 0.6));
         z-index: 2147483000;
         font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
