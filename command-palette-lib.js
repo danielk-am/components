@@ -57,7 +57,7 @@
   
       .header svg { width: 16px; height: 16px; color: #64748b; }
   
-      input[type="search"] {
+      input[type="text"] {
         flex: 1;
         border: none;
         font-size: 15px;
@@ -67,7 +67,7 @@
         color: inherit;
       }
   
-      input[type="search"]::placeholder { color: #94a3b8; }
+      input[type="text"]::placeholder { color: #94a3b8; }
   
       .list {
         overflow-y: auto;
@@ -323,7 +323,7 @@
         `;
   
         this.input = document.createElement('input');
-        this.input.type = 'search';
+        this.input.type = 'text';
         this.input.placeholder = this.config.placeholder;
         this.input.autocomplete = 'off';
         this.input.spellcheck = false;
@@ -511,7 +511,13 @@
 
           if (modifierSubmit) {
             event.preventDefault();
-            this.dispatchEvent(new CustomEvent('he:submit', { detail: { query, via: 'modifier-enter' } }));
+            this.dispatchEvent(
+              new CustomEvent('he:submit', {
+                detail: { query, via: 'modifier-enter' },
+                bubbles: true,
+                composed: true,
+              })
+            );
             return;
           }
 
@@ -519,7 +525,13 @@
           if (this.filteredItems.length && this.activeIndex >= 0) {
             this._activate();
           } else if (query) {
-            this.dispatchEvent(new CustomEvent('he:submit', { detail: { query, via: 'empty' } }));
+            this.dispatchEvent(
+              new CustomEvent('he:submit', {
+                detail: { query, via: 'empty' },
+                bubbles: true,
+                composed: true,
+              })
+            );
           }
         } else if (event.key === 'Tab') {
           event.preventDefault();
