@@ -57,6 +57,7 @@
   
       .header svg { width: 16px; height: 16px; color: #64748b; }
   
+      .header input,
       .header textarea {
         flex: 1;
         border: none;
@@ -66,10 +67,10 @@
         background: transparent;
         color: inherit;
         resize: none;
-        overflow: hidden;
-        height: 26px;
+        height: 24px;
       }
 
+      .header input::placeholder,
       .header textarea::placeholder { color: #94a3b8; }
   
       .list {
@@ -333,8 +334,9 @@
         this.input.autocapitalize = 'none';
         this.input.setAttribute('autocorrect', 'off');
         this.input.setAttribute('inputmode', 'text');
+        this.input.style.overflow = 'hidden';
         this.input.addEventListener('input', () => {
-          this.input.style.height = '26px';
+          this.input.style.height = 'auto';
           this.input.style.height = `${this.input.scrollHeight}px`;
         });
         this.input.addEventListener('input', () => this._filter());
@@ -453,7 +455,6 @@
         this.setAttribute('open', '');
         this.dataset.state = 'open';
         this.input.value = '';
-      this.input.style.height = '26px';
         this._filter();
         requestAnimationFrame(() => {
           this.input.focus();
