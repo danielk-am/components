@@ -57,7 +57,7 @@
   
       .header svg { width: 16px; height: 16px; color: #64748b; }
   
-      .header input {
+      .header textarea {
         flex: 1;
         border: none;
         font-size: 15px;
@@ -65,9 +65,12 @@
         outline: none;
         background: transparent;
         color: inherit;
+        resize: none;
+        overflow: hidden;
+        height: 26px;
       }
 
-      .header input::placeholder { color: #94a3b8; }
+      .header textarea::placeholder { color: #94a3b8; }
   
       .list {
         overflow-y: auto;
@@ -322,14 +325,18 @@
           </svg>
         `;
   
-        this.input = document.createElement('input');
-        this.input.type = 'text';
+        this.input = document.createElement('textarea');
+        this.input.rows = 1;
         this.input.placeholder = this.config.placeholder;
         this.input.autocomplete = 'off';
         this.input.spellcheck = false;
         this.input.autocapitalize = 'none';
         this.input.setAttribute('autocorrect', 'off');
         this.input.setAttribute('inputmode', 'text');
+        this.input.addEventListener('input', () => {
+          this.input.style.height = '26px';
+          this.input.style.height = `${this.input.scrollHeight}px`;
+        });
         this.input.addEventListener('input', () => this._filter());
         this.input.addEventListener('keydown', (e) => this._handleInputKeys(e));
         header.appendChild(this.input);
@@ -446,6 +453,7 @@
         this.setAttribute('open', '');
         this.dataset.state = 'open';
         this.input.value = '';
+      this.input.style.height = '26px';
         this._filter();
         requestAnimationFrame(() => {
           this.input.focus();
