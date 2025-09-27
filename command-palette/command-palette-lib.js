@@ -286,7 +286,26 @@
         color: #64748b;
         margin-top: 2px;
       }
-  
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        border-radius: 999px;
+        background: rgba(37, 99, 235, 0.12);
+        color: #1d4ed8;
+      }
+
       .shortcut {
         margin-left: auto;
         font-size: 11px;
@@ -1016,6 +1035,7 @@
               <div class="body">
                 <p class="title"></p>
                 <span class="meta"></span>
+                <div class="tags" hidden></div>
               </div>
               <span class="shortcut"></span>
             `;
@@ -1023,6 +1043,7 @@
             const front = div.querySelector('.icon');
             const title = div.querySelector('.title');
             const meta = div.querySelector('.meta');
+            const tagsEl = div.querySelector('.tags');
             const shortcut = div.querySelector('.shortcut');
   
             if (item.icon) {
@@ -1042,13 +1063,51 @@
             shortcut.textContent = item.shortcut || '';
   
             if (!item.description) meta.style.display = 'none';
+            else meta.style.display = '';
             if (!item.shortcut) shortcut.style.display = 'none';
+            else shortcut.style.display = '';
   
+            const rawTags = Array.isArray(item.tags)
+              ? item.tags
+              : typeof item.tags === 'string'
+                ? item.tags.split(',')
+                : [];
+            const cleanedTags = rawTags
+              .map((tag) => String(tag || '').trim())
+              .filter(Boolean);
+
+            if (cleanedTags.length) {
+              tagsEl.hidden = false;
+              tagsEl.innerHTML = '';
+              cleanedTags.forEach((tagValue) => {
+                const normalizedLabel = tagValue.startsWith('#') ? tagValue.slice(1) : tagValue;
+                const badge = document.createElement('span');
+                badge.className = 'tag';
+                badge.textContent = `#${normalizedLabel}`;
+                tagsEl.appendChild(badge);
+              });
+            } else {
+              tagsEl.hidden = true;
+              tagsEl.innerHTML = '';
+            }
+
+            const normalizedTags = cleanedTags
+              .map((tag) => (tag.startsWith('#') ? tag.slice(1) : tag).toLowerCase())
+              .filter(Boolean);
+
+            const haystackParts = [
+              item.title || '',
+              item.description || '',
+              group.label || '',
+              cleanedTags.map((tag) => (tag.startsWith('#') ? tag : `#${tag}`)).join(' '),
+            ];
+
             this.items.push({
               element: div,
               data: item,
               groupLabel: group.label || '',
-              tags: Array.isArray(item.tags) ? item.tags : (typeof item.tags === 'string' ? item.tags.split(',') : []),
+              normalizedTags,
+              searchHaystack: haystackParts.join(' '),
             });
   
             section.appendChild(div);
@@ -1070,28 +1129,50 @@
           this._lastQuery = this.input.value;
         }
         const raw = this.input.value;
-        const term = raw.trim();
+        const trimmed = raw.trim();
         this.currentQuery = raw;
         this.filteredItems = [];
-  
-        this.items.forEach((entry) => {
-          const { data, element, groupLabel } = entry;
 
-          const haystack = [
-            data.title || '',
-            data.description || '',
-            groupLabel,
-            (entry.tags || []).join(' '),
-          ].join(' ');
+        const tokens = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+        const tagTokens = [];
+        const textTokens = [];
 
-          if (fuzzymatch(term, haystack)) {
-            element.style.display = '';
-            element.dataset.index = String(this.filteredItems.length);
-            this.filteredItems.push(entry);
+        tokens.forEach((token) => {
+          const lower = token.toLowerCase();
+          if (lower.startsWith('#')) {
+            const tag = lower.slice(1);
+            if (tag) tagTokens.push(tag);
           } else {
+            textTokens.push(lower);
+          }
+        });
+
+        this.items.forEach((entry) => {
+          const { element, normalizedTags = [], searchHaystack = '' } = entry;
+
+          const matchesTags = tagTokens.length
+            ? tagTokens.every((needle) => normalizedTags.some((tag) => tag.includes(needle)))
+            : true;
+
+          if (!matchesTags) {
             element.style.display = 'none';
             delete element.dataset.index;
+            return;
           }
+
+          const matchesText = textTokens.length
+            ? textTokens.every((token) => fuzzymatch(token, searchHaystack))
+            : true;
+
+          if (!matchesText) {
+            element.style.display = 'none';
+            delete element.dataset.index;
+            return;
+          }
+
+          element.style.display = '';
+          element.dataset.index = String(this.filteredItems.length);
+          this.filteredItems.push(entry);
         });
   
         this.list.querySelectorAll('.group').forEach((groupEl) => {
