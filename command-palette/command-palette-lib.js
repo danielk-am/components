@@ -969,9 +969,10 @@
        */
       _activate() {
         if (this.activeIndex < 0 || this.activeIndex >= this.filteredItems.length) return;
-        const item = this.filteredItems[this.activeIndex];
+        const entry = this.filteredItems[this.activeIndex];
+        const item = entry?.data;
         if (!item) return;
-  
+
         if (typeof item.onSelect === 'function') {
           try {
             item.onSelect(item);
@@ -1075,30 +1076,23 @@
   
         this.items.forEach((entry) => {
           const { data, element, groupLabel } = entry;
-  
+
           const haystack = [
             data.title || '',
             data.description || '',
             groupLabel,
             (entry.tags || []).join(' '),
           ].join(' ');
-  
+
           if (fuzzymatch(term, haystack)) {
             element.style.display = '';
-            this.filteredItems.push(data);
-            data._element = element;
+            element.dataset.index = String(this.filteredItems.length);
+            this.filteredItems.push(entry);
           } else {
             element.style.display = 'none';
+            delete element.dataset.index;
           }
         });
-  
-        if (term) {
-          this.filteredItems.sort((a, b) => {
-            const av = (a.title || '').toLowerCase();
-            const bv = (b.title || '').toLowerCase();
-            return av.localeCompare(bv);
-          });
-        }
   
         this.list.querySelectorAll('.group').forEach((groupEl) => {
           const hasVisible = Array.from(groupEl.children).some((child) => child.classList.contains('item') && child.style.display !== 'none');
@@ -1127,7 +1121,7 @@
   
         if (this.activeIndex < 0 || this.activeIndex >= this.filteredItems.length) return;
         const activeItem = this.filteredItems[this.activeIndex];
-        const el = activeItem._element;
+        const el = activeItem?.element;
         if (!el) return;
         el.dataset.active = 'true';
   
