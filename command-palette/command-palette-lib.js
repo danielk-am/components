@@ -84,6 +84,50 @@
       };
     }
 
+    function sanitizeGenericConfig(overrides = {}) {
+      const base = overrides && typeof overrides === 'object' ? overrides : {};
+      const paletteConfig = { ...base.palette };
+
+      const selectors = base.editors?.selectors;
+      let normalizedSelectors;
+      if (Array.isArray(selectors)) {
+        normalizedSelectors = selectors
+          .map((value) => (typeof value === 'string' ? value.trim() : ''))
+          .filter(Boolean);
+      } else if (typeof selectors === 'string' && selectors.trim()) {
+        normalizedSelectors = [selectors.trim()];
+      }
+
+      const editorsConfig = { ...(base.editors || {}) };
+      if (normalizedSelectors && normalizedSelectors.length) {
+        editorsConfig.selectors = normalizedSelectors;
+      } else if (editorsConfig.selectors) {
+        delete editorsConfig.selectors;
+      }
+
+      const quickPromptConfig = { ...(base.quickPrompt || {}) };
+      const contextConfig = { ...(base.context || {}) };
+
+      const catalogConfig = {
+        url: base.catalog?.url || '',
+        headers: { ...(base.catalog?.headers || {}) },
+        cacheMs: Number.isFinite(base.catalog?.cacheMs) ? base.catalog.cacheMs : base.catalog?.cacheMs,
+        fallback: Array.isArray(base.catalog?.fallback) ? base.catalog.fallback : undefined,
+      };
+
+      const webhooksConfig = { ...(base.webhooks || {}) };
+
+      return {
+        ...base,
+        palette: paletteConfig,
+        editors: editorsConfig,
+        quickPrompt: quickPromptConfig,
+        context: contextConfig,
+        catalog: catalogConfig,
+        webhooks: webhooksConfig,
+      };
+    }
+
     const CSS = `
       :host {
         position: fixed;
@@ -1314,6 +1358,607 @@
         return palette;
       },
     };
+
+  window.HeCommandPalette.bootstrapGeneric = function bootstrapGeneric(config = {}) {
+    console.log('[CMD generic] Initialising command palette logic');
+
+    const defaultConfig = {
+      palette: {
+        toggleKey: 'k',
+        toggleModifier: 'metaKey',
+        secondaryModifier: 'ctrlKey',
+        allowInInputs: true,
+        backdropOpacity: 0.4,
+        closeOnBackdrop: true,
+        placeholder: 'Search commands…',
+        emptyState: 'No matching commands.',
+      },
+      editors: {
+        selectors: ['textarea', 'input[type="text"]', 'input[type="search"]', '[contenteditable="true"]'],
+      },
+      webhooks: {},
+      quickPrompt: {
+        enabled: true,
+        webhookKey: '',
+        insertMode: 'caret',
+        titlePrefix: 'Quick prompt',
+        description: 'Ad-hoc AI prompt',
+        fallback: ['No response available. Please try again.'],
+      },
+      context: {
+        includeSelection: true,
+        includePageMeta: true,
+      },
+      catalog: {
+        url: '',
+        headers: {},
+        fallback: [],
+      },
+    };
+
+    const CONFIG = deepMerge(defaultConfig, sanitizeGenericConfig(config));
+
+    const palette = window.HeCommandPalette.create({
+      toggleKey: CONFIG.palette.toggleKey,
+      toggleModifier: CONFIG.palette.toggleModifier,
+      secondaryModifier: CONFIG.palette.secondaryModifier,
+      allowInInputs: CONFIG.palette.allowInInputs,
+      backdropOpacity: CONFIG.palette.backdropOpacity,
+      closeOnBackdrop: CONFIG.palette.closeOnBackdrop,
+      placeholder: CONFIG.palette.placeholder,
+      emptyState: CONFIG.palette.emptyState,
+    });
+
+    const selectors = Array.isArray(CONFIG.editors?.selectors) && CONFIG.editors.selectors.length
+      ? CONFIG.editors.selectors
+      : ['textarea', 'input[type="text"]', 'input[type="search"]', '[contenteditable="true"]'];
+
+    let activeEditable = null;
+
+    function isEditableNode(node) {
+      if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+      if (node.isContentEditable) return true;
+      return selectors.some((selector) => {
+        try {
+          return node.matches(selector);
+        } catch (_) {
+          return false;
+        }
+      });
+    }
+
+    function findEditableFrom(target) {
+      if (!target) return null;
+      if (isEditableNode(target)) return target;
+      if (typeof target.closest === 'function') {
+        for (const selector of selectors) {
+          try {
+            const match = target.closest(selector);
+            if (match) return match;
+          } catch (_) {}
+        }
+      }
+      return null;
+    }
+
+    function captureEditable(target) {
+      const editable = findEditableFrom(target) || (document.activeElement && findEditableFrom(document.activeElement));
+      if (editable) {
+        activeEditable = editable;
+      }
+    }
+
+    function getActiveEditable() {
+      if (activeEditable && document.contains(activeEditable)) return activeEditable;
+      const active = document.activeElement;
+      if (active && findEditableFrom(active)) {
+        activeEditable = active;
+        return activeEditable;
+      }
+      return null;
+    }
+
+    function normalizeInsertMode(value) {
+      if (window.TextInsertionUtils && typeof window.TextInsertionUtils.normalizeInsertMode === 'function') {
+        return window.TextInsertionUtils.normalizeInsertMode(value);
+      }
+      return typeof value === 'string' ? value : 'caret';
+    }
+
+    function insertTextIntoEditable(text, mode = 'caret', options = {}) {
+      const target = getActiveEditable();
+      if (!target || !window.TextInsertionUtils || typeof window.TextInsertionUtils.insertText !== 'function') {
+        return { success: false };
+      }
+
+      const logger = (message, level = 'log') => console[level]('[CMD generic]', message);
+      return window.TextInsertionUtils.insertText(target, text, {
+        mode: normalizeInsertMode(mode),
+        asHtml: options.asHtml === true,
+        logger,
+        onCopyFallback: (value) => void navigator.clipboard.writeText(value),
+      });
+    }
+
+    document.addEventListener('focusin', (event) => captureEditable(event.target));
+    document.addEventListener('pointerdown', (event) => captureEditable(event.target));
+
+    function handleUtilityAction(action) {
+      switch ((action || '').toLowerCase()) {
+        case 'reload':
+        case 'refresh':
+          location.reload();
+          break;
+        case 'copy-url':
+          navigator.clipboard
+            .writeText(location.href)
+            .then(() => palette.setStatus('URL copied to clipboard.', { variant: 'success' }))
+            .catch((error) => {
+              console.warn('[CMD generic] Clipboard write failed', error);
+              palette.setStatus('Unable to copy URL to clipboard.', { variant: 'danger' });
+            });
+          break;
+        default:
+          console.warn('[CMD generic] Unknown utility action', action);
+      }
+    }
+
+    function showTextPreview({
+      title,
+      text,
+      insertMode = 'caret',
+      statusVariant = 'info',
+      statusMessage,
+      closeOnInsert = true,
+      primaryDisabled = false,
+      primaryLabel = 'Insert into field',
+      secondaryLabel = 'Copy to clipboard',
+    }) {
+      if (!palette || typeof palette.setPreview !== 'function') return;
+
+      const payload = String(text ?? '');
+      const message = statusMessage || `Previewing “${title || 'Snippet'}”.`;
+      palette.setStatus(message, { variant: statusVariant });
+
+      const maybeClose = () => {
+        if (closeOnInsert && typeof palette.close === 'function') {
+          palette.close();
+        }
+      };
+
+      const primary = primaryDisabled
+        ? {
+            label: primaryLabel,
+            disabled: true,
+          }
+        : {
+            label: primaryLabel,
+            onClick: async () => {
+              const result = insertTextIntoEditable(payload, insertMode);
+              if (result.success) {
+                palette.setStatus('Inserted into active field.', { variant: 'success' });
+                maybeClose();
+              } else {
+                await navigator.clipboard.writeText(payload);
+                palette.setStatus('No editable detected. Copied to clipboard instead.', { variant: 'warning' });
+              }
+            },
+          };
+
+      palette.setPreview({
+        title: title || 'Snippet',
+        text: payload,
+        primary,
+        secondary: {
+          label: secondaryLabel,
+          onClick: async () => {
+            await navigator.clipboard.writeText(payload);
+            palette.setStatus('Copied to clipboard.', { variant: 'success' });
+          },
+        },
+      });
+    }
+
+    function truncate(value, max = 64) {
+      const text = String(value ?? '');
+      return text.length <= max ? text : `${text.slice(0, max - 3)}...`;
+    }
+
+    function handleQuickPrompt(query) {
+      const settings = CONFIG.quickPrompt || {};
+      if (settings.enabled === false) {
+        palette.setStatus('Quick prompt is disabled.', { variant: 'warning' });
+        return;
+      }
+
+      const webhookKey = settings.webhookKey;
+      const webhook = webhookKey ? CONFIG.webhooks?.[webhookKey] : null;
+      if (!webhook || !webhook.url) {
+        palette.setStatus('Quick prompt webhook is not configured.', { variant: 'danger' });
+        return;
+      }
+
+      const title = `${settings.titlePrefix || 'Quick prompt'}: ${truncate(query, 64)}`;
+      runAiCommand({
+        id: 'quick-prompt',
+        title,
+        description: settings.description,
+        prompt: query,
+        webhookKey,
+        fallback: settings.fallback,
+        insertMode: settings.insertMode,
+      });
+    }
+
+    function buildRequestPayload({ command, prompt }) {
+      const metadata = {
+        url: location.href,
+        title: document.title,
+        timestamp: new Date().toISOString(),
+      };
+      if (command?.id) metadata.commandId = command.id;
+
+      const payload = { prompt, metadata };
+
+      if (CONFIG.context?.includeSelection && typeof window.getSelection === 'function') {
+        const selection = window.getSelection().toString().trim();
+        if (selection) payload.selection = selection;
+      }
+
+      if (CONFIG.context?.includePageMeta) {
+        payload.page = {
+          url: location.href,
+          title: document.title,
+        };
+      }
+
+      return payload;
+    }
+
+    async function runAiCommand(command) {
+      if (!palette) return;
+
+      const inlineWebhook = command.webhook && typeof command.webhook === 'object' ? command.webhook : null;
+      const settings = inlineWebhook || (command.webhookKey ? CONFIG.webhooks?.[command.webhookKey] : null) || null;
+      const fallbackBlocks = Array.isArray(command.fallback)
+        ? command.fallback
+        : Array.isArray(settings?.fallback)
+        ? settings.fallback
+        : [];
+      const insertMode = normalizeInsertMode(command.insertMode || 'caret');
+      const prompt = command.prompt || inlineWebhook?.prompt || '';
+
+      if (!settings || !settings.url) {
+        showTextPreview({
+          title: command.title || 'AI Command',
+          text:
+            fallbackBlocks.join('\n\n') || 'No webhook configuration found. Update CONFIG.webhooks to continue.',
+          statusVariant: fallbackBlocks.length ? 'warning' : 'danger',
+        });
+        return;
+      }
+
+      if (!prompt) {
+        showTextPreview({
+          title: command.title || 'AI Command',
+          text: fallbackBlocks.join('\n\n') || 'No prompt defined for this command.',
+          statusVariant: 'warning',
+        });
+        return;
+      }
+
+      palette.setStatus(`Requesting “${command.title || 'AI Command'}”…`, { variant: 'info', loading: true });
+
+      const controller = new AbortController();
+      const timeoutMs = Number.isFinite(settings.timeoutMs) ? settings.timeoutMs : 20000;
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+      let responseText = '';
+      let fallbackUsed = false;
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(settings.headers || {}),
+        };
+
+        const payload = buildRequestPayload({ command, prompt });
+        if (command.payload && typeof command.payload === 'object') {
+          payload.payload = { ...(payload.payload || {}), ...command.payload };
+        }
+        if (inlineWebhook?.payload && typeof inlineWebhook.payload === 'object') {
+          payload.payload = { ...(payload.payload || {}), ...inlineWebhook.payload };
+        }
+
+        const response = await fetch(settings.url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        const streamed = { value: '' };
+        const insertLabel = 'Insert response';
+        const copyLabel = 'Copy response';
+
+        const streamingResult =
+          window.AIStreamUtils && typeof window.AIStreamUtils.tryHandleStreamingResponse === 'function'
+            ? await window.AIStreamUtils.tryHandleStreamingResponse(response.clone(), {
+                onStart: () => {
+                  streamed.value = '';
+                  showTextPreview({
+                    title: command.title || 'AI Command',
+                    text: '',
+                    insertMode,
+                    statusVariant: 'info',
+                    statusMessage: 'Streaming AI response…',
+                    primaryDisabled: true,
+                    primaryLabel: insertLabel,
+                    secondaryLabel: copyLabel,
+                    closeOnInsert: false,
+                  });
+                },
+                onChunk: (chunk) => {
+                  if (!chunk) return;
+                  streamed.value += chunk;
+                  if (typeof palette.appendPreviewText === 'function') {
+                    palette.appendPreviewText(chunk, { smooth: true });
+                  } else {
+                    showTextPreview({
+                      title: command.title || 'AI Command',
+                      text: streamed.value,
+                      insertMode,
+                      statusVariant: 'info',
+                      statusMessage: 'Streaming AI response…',
+                      primaryDisabled: true,
+                      primaryLabel: insertLabel,
+                      secondaryLabel: copyLabel,
+                      closeOnInsert: false,
+                    });
+                  }
+                },
+                onComplete: ({ text }) => {
+                  if (text && text !== streamed.value) {
+                    streamed.value = text;
+                  }
+                  showTextPreview({
+                    title: command.title || 'AI Command',
+                    text: streamed.value,
+                    insertMode,
+                    statusVariant: streamed.value ? 'success' : 'warning',
+                    statusMessage: streamed.value ? 'AI response ready.' : 'Streaming finished without content.',
+                    primaryLabel: insertLabel,
+                    secondaryLabel: copyLabel,
+                    closeOnInsert: false,
+                  });
+                },
+                onError: (error) => {
+                  console.warn('[CMD generic] Streaming handler error', error);
+                },
+              })
+            : { handled: false };
+
+        if (streamingResult.handled) {
+          clearTimeout(timeout);
+          return;
+        }
+
+        const raw = await response.text();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${raw.slice(0, 200)}`);
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (_) {
+          parsed = null;
+        }
+
+        const candidate =
+          typeof parsed === 'string'
+            ? parsed
+            : parsed?.response || parsed?.text || parsed?.result || raw;
+        responseText = String(candidate || '').trim();
+        if (!responseText) {
+          throw new Error('Webhook returned an empty response.');
+        }
+      } catch (error) {
+        console.warn('[CMD generic] AI webhook failed', error);
+        responseText =
+          fallbackBlocks.join('\n\n') || 'Unable to fetch response, and no fallback text is configured.';
+        fallbackUsed = true;
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      showTextPreview({
+        title: command.title || 'AI Command',
+        text: responseText,
+        insertMode,
+        statusVariant: fallbackUsed ? 'warning' : 'success',
+        statusMessage: fallbackUsed ? 'Using fallback response.' : 'AI response ready.',
+        primaryLabel: 'Insert response',
+        secondaryLabel: 'Copy response',
+        closeOnInsert: false,
+      });
+    }
+
+    function buildStaticCommand(item) {
+      if (!item || !item.body) return null;
+      const text = String(item.body);
+      return {
+        title: item.title || 'Snippet',
+        description: item.description || '',
+        tags: item.tags,
+        keepOpen: item.keepOpen ?? true,
+        onSelect: () => {
+          showTextPreview({
+            title: item.title || 'Snippet',
+            text,
+            insertMode: item.insertMode,
+            closeOnInsert: item.keepOpen !== true,
+          });
+        },
+      };
+    }
+
+    function buildAiCommand(item) {
+      if (!item) return null;
+      return {
+        title: item.title || 'AI Command',
+        description: item.description || '',
+        tags: item.tags,
+        keepOpen: true,
+        onSelect: () => runAiCommand(item),
+      };
+    }
+
+    function buildUtilityCommand(item) {
+      if (!item) return null;
+      return {
+        title: item.title || 'Utility',
+        description: item.description || '',
+        tags: item.tags,
+        keepOpen: item.keepOpen ?? false,
+        onSelect: () => {
+          try {
+            if (item.sidebarAction) {
+              window.dispatchEvent(
+                new CustomEvent('he:sidebar-action', {
+                  detail: {
+                    action: String(item.sidebarAction),
+                    payload: item.payload || {},
+                  },
+                })
+              );
+            } else if (item.action) {
+              handleUtilityAction(item.action);
+            } else if (item.href) {
+              window.open(item.href, item.target || '_blank');
+            }
+          } catch (error) {
+            console.error('[CMD generic] Utility command failed', error);
+            palette.setStatus('Unable to execute utility command.', { variant: 'danger' });
+          }
+        },
+      };
+    }
+
+    function buildPaletteItem(group, item) {
+      const type = (item.type || group.type || 'static').toLowerCase();
+      switch (type) {
+        case 'static':
+        case 'snippet':
+          return buildStaticCommand(item);
+        case 'ai':
+          return buildAiCommand(item);
+        case 'utility':
+        case 'tool':
+          return buildUtilityCommand(item);
+        default:
+          console.warn('[CMD generic] Unsupported item type', type, item);
+          return null;
+      }
+    }
+
+    function buildPaletteData(groups = []) {
+      return groups
+        .map((group) => {
+          const items = (group.items || [])
+            .map((item) => buildPaletteItem(group, item))
+            .filter(Boolean);
+          if (!items.length) return null;
+          return { label: group.label || 'Commands', items };
+        })
+        .filter(Boolean);
+    }
+
+    async function refreshCatalog(paletteInstance) {
+      if (!CONFIG.catalog.url) return;
+      try {
+        const response = await fetch(CONFIG.catalog.url, { headers: CONFIG.catalog.headers || {} });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const groups = Array.isArray(data?.groups) ? data.groups : [];
+        if (groups.length) {
+          paletteInstance.setData(buildPaletteData(groups));
+          paletteInstance.setStatus('Commands loaded from remote catalog.', { variant: 'success' });
+        }
+      } catch (error) {
+        console.warn('[CMD generic] Catalog fetch failed, using fallback.', error);
+        paletteInstance.setStatus('Using fallback command set.', { variant: 'warning' });
+      }
+    }
+
+    const fallbackGroups = Array.isArray(CONFIG.catalog.fallback) ? CONFIG.catalog.fallback : [];
+    palette.setData(buildPaletteData(fallbackGroups));
+
+    palette.addEventListener('he:open', () => {
+      captureEditable(document.activeElement);
+      palette.clearStatus();
+      palette.hidePreview(true);
+      palette.setStatus('Type to filter commands.', { variant: 'info' });
+    });
+
+    palette.addEventListener('he:close', () => {
+      palette.clearStatus();
+      palette.hidePreview(true);
+    });
+
+    palette.addEventListener('he:submit', (event) => {
+      const queryRaw = event.detail?.queryRaw ?? '';
+      const query = queryRaw.trim();
+      if (!query) return;
+      handleQuickPrompt(query);
+    });
+
+    palette.addEventListener('keydown', (event) => {
+      if (palette.dataset.state !== 'open') return;
+      const key = event.key;
+      if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Tab' || key === ' ' || key === 'Spacebar') {
+        event.stopPropagation();
+      }
+    });
+
+    const mountPalette = () => {
+      if (palette.__heMounted) return true;
+      const host = document.body || document.documentElement;
+      if (!host) return false;
+      host.appendChild(palette);
+      palette.__heMounted = true;
+      return true;
+    };
+
+    if (!mountPalette()) {
+      const onReady = () => {
+        if (mountPalette()) {
+          document.removeEventListener('DOMContentLoaded', onReady, true);
+        }
+      };
+      document.addEventListener('DOMContentLoaded', onReady, true);
+
+      const observer = new MutationObserver(() => {
+        if (mountPalette()) observer.disconnect();
+      });
+      observer.observe(document.documentElement || document, { childList: true, subtree: true });
+    }
+
+    try {
+      if (palette && palette.shadowRoot && !palette.shadowRoot.querySelector('style[data-he-layout]')) {
+        const style = document.createElement('style');
+        style.setAttribute('data-he-layout', 'true');
+        style.textContent = `:host{place-content:start center !important;padding-top:4rem !important;padding-bottom:4rem !important;}`;
+        palette.shadowRoot.appendChild(style);
+      }
+    } catch (_) {}
+
+    if (CONFIG.catalog.url) {
+      refreshCatalog(palette);
+    }
+
+    return palette;
+  };
 
   window.HeCommandPalette.bootstrapZendesk = function bootstrapZendesk(config = {}) {
     console.log('[CMD zd] Initialising command palette logic');
