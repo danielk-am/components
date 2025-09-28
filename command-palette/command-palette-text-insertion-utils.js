@@ -4,6 +4,12 @@
 (function () {
   'use strict';
 
+  /**
+   * Normalizes an insertion mode string to one of the supported values.
+   *
+   * @param {string} mode - Requested insertion hint.
+   * @returns {('caret'|'append'|'prepend'|'replace')} Normalized mode.
+   */
   function normalizeInsertMode(mode) {
     const normalized = (mode == null ? 'caret' : String(mode)).toLowerCase();
 
@@ -18,6 +24,18 @@
     }
   }
 
+  /**
+   * Inserts text or HTML into a DOM target, falling back to clipboard copy when unavailable.
+   *
+   * @param {HTMLElement|null} target - Target input or contenteditable element.
+   * @param {string} text - Content to insert.
+   * @param {Object} [options={}] - Insertion flags.
+   * @param {('caret'|'append'|'prepend'|'replace')} [options.mode='caret'] - Insertion mode.
+   * @param {Function} [options.onCopyFallback] - Callback when clipboard fallback occurs.
+   * @param {Function} [options.logger] - Optional logging function.
+   * @param {boolean} [options.asHtml=false] - Whether the payload should be treated as HTML.
+   * @returns {{success: boolean, method: string}} Result describing insertion path.
+   */
   function insertText(target, text, options = {}) {
     const { mode = 'caret', onCopyFallback, logger, asHtml = false } = options;
 
@@ -44,6 +62,13 @@
     return result;
   }
 
+  /**
+   * Inserts text into a native input/textarea element using the requested mode.
+   *
+   * @param {HTMLInputElement|HTMLTextAreaElement} target - Plain text field.
+   * @param {string} text - Text to inject.
+   * @param {string} mode - Normalized insertion mode.
+   */
   function insertIntoPlainTextInput(target, text, mode) {
     const value = target.value ?? '';
 
@@ -71,6 +96,16 @@
     target.focus();
   }
 
+  /**
+   * Inserts text or HTML into a contenteditable node, attempting the most compatible strategy.
+   *
+   * @param {HTMLElement} target - Contenteditable destination.
+   * @param {string} text - Payload to insert.
+   * @param {string} mode - Normalized insertion mode.
+   * @param {Function} logger - Logger utility.
+   * @param {boolean} asHtml - Whether to treat payload as HTML.
+   * @returns {{success: boolean, method: string}} Result describing insertion path.
+   */
   function insertIntoContentEditable(target, text, mode, logger, asHtml) {
     try {
       const doc = target.ownerDocument || document;
@@ -150,6 +185,14 @@
     }
   }
 
+  /**
+   * Appends plain text to a contenteditable element as a DOM fragment fallback.
+   *
+   * @param {HTMLElement} target - Contenteditable destination.
+   * @param {string} text - Text to insert.
+   * @param {Function} logger - Logger utility.
+   * @returns {boolean} True when fallback succeeded.
+   */
   function appendFragmentFallback(target, text, logger) {
     try {
       appendedFragment(target, text);
@@ -161,6 +204,14 @@
     }
   }
 
+  /**
+   * Appends HTML to a contenteditable element as a DOM fragment fallback.
+   *
+   * @param {HTMLElement} target - Contenteditable destination.
+   * @param {string} html - HTML string to insert.
+   * @param {Function} logger - Logger utility.
+   * @returns {boolean} True when fallback succeeded.
+   */
   function appendHtmlFragmentFallback(target, html, logger) {
     try {
       appendedHtml(target, html);
@@ -172,6 +223,12 @@
     }
   }
 
+  /**
+   * Dispatches an input event on the target to notify host frameworks of content changes.
+   *
+   * @param {HTMLElement} target - Element that received inserted content.
+   * @param {string} text - Text payload used for the event.
+   */
   function dispatchInput(target, text) {
     try {
       const inputEvent = new InputEvent('input', {
@@ -185,6 +242,12 @@
     }
   }
 
+  /**
+   * Appends a plaintext DOM fragment, preserving line breaks, to the contenteditable target.
+   *
+   * @param {HTMLElement} target - Destination node.
+   * @param {string} text - Text payload.
+   */
   function appendedFragment(target, text) {
     const doc = target.ownerDocument || document;
     const fragment = doc.createDocumentFragment();
@@ -200,6 +263,12 @@
     placeCaretAtEnd(target);
   }
 
+  /**
+   * Appends an HTML fragment to the contenteditable target at the current caret position.
+   *
+   * @param {HTMLElement} target - Destination node.
+   * @param {string} html - HTML payload.
+   */
   function appendedHtml(target, html) {
     const fragment = htmlToFragment(String(html ?? ''));
     const selection = window.getSelection();
@@ -213,6 +282,11 @@
     placeCaretAtEnd(target);
   }
 
+  /**
+   * Places the caret at the end of the provided element.
+   *
+   * @param {HTMLElement} element - Editable target.
+   */
   function placeCaretAtEnd(element) {
     try {
       const doc = element.ownerDocument || document;
@@ -226,6 +300,11 @@
     } catch (error) {}
   }
 
+  /**
+   * Places the caret at the beginning of the provided element.
+   *
+   * @param {HTMLElement} element - Editable target.
+   */
   function placeCaretAtStart(element) {
     try {
       const doc = element.ownerDocument || document;
@@ -239,10 +318,23 @@
     } catch (error) {}
   }
 
+  /**
+   * Determines whether the element is a plain text input or textarea.
+   *
+   * @param {Element} el - DOM element to inspect.
+   * @returns {boolean} True when the element should be treated as a plaintext input.
+   */
   function isPlainTextInput(el) {
     return !!el && ((el.tagName === 'INPUT' && el.type === 'text') || el.tagName === 'TEXTAREA');
   }
 
+  /**
+   * Checks whether text insertion succeeded by comparing the target contents.
+   *
+   * @param {HTMLElement} target - Destination element.
+   * @param {string} text - Text payload.
+   * @returns {boolean} True when the text appears within the element.
+   */
   function wasTextInserted(target, text) {
     const expected = String(text ?? '').trim();
     if (!expected) return true;
@@ -250,6 +342,13 @@
     return snapshot.includes(expected);
   }
 
+  /**
+   * Checks whether HTML insertion succeeded by evaluating the target's innerHTML/text.
+   *
+   * @param {HTMLElement} target - Destination element.
+   * @param {string} html - HTML payload used for insertion.
+   * @returns {boolean} True when the HTML appears within the element.
+   */
   function wasHtmlInserted(target, html) {
     const expected = String(html ?? '').trim();
     if (!expected) return true;
@@ -257,6 +356,13 @@
     return snapshot.includes(expected) || wasTextInserted(target, htmlToText(html));
   }
 
+  /**
+   * Converts an HTML string to a document fragment using a template element.
+   *
+   * @param {string} html - HTML payload.
+   * @param {Document} [docOverride] - Optional document context to use.
+   * @returns {DocumentFragment} Resulting fragment.
+   */
   function htmlToFragment(html, docOverride) {
     const doc = docOverride || document;
     const template = doc.createElement('template');
@@ -264,12 +370,26 @@
     return template.content.cloneNode(true);
   }
 
+  /**
+   * Strips HTML tags, returning a plaintext representation of the markup.
+   *
+   * @param {string} html - HTML payload.
+   * @returns {string} Plain text version.
+   */
   function htmlToText(html) {
     const div = document.createElement('div');
     div.innerHTML = String(html);
     return div.innerText || div.textContent || '';
   }
 
+  /**
+   * Attempts to insert HTML content using a synthetic paste ClipboardEvent for compatibility.
+   *
+   * @param {HTMLElement} target - Destination contenteditable element.
+   * @param {string} html - HTML payload.
+   * @param {Function} logger - Logger utility.
+   * @returns {boolean} True when the paste event succeeded and content was inserted.
+   */
   function tryPasteHtml(target, html, logger) {
     try {
       const doc = target.ownerDocument || document;
@@ -295,6 +415,14 @@
     }
   }
 
+  /**
+   * Safely constructs an InputEvent, providing fallbacks for older browser implementations.
+   *
+   * @param {Window} win - Window context.
+   * @param {string} type - Event type name.
+   * @param {Object} init - Event init dictionary.
+   * @returns {Event} Constructed event instance.
+   */
   function safeCreateInputEvent(win, type, init) {
     try {
       const Ctor = win.InputEvent || window.InputEvent;

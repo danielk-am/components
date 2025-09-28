@@ -4,6 +4,12 @@
 (function () {
   'use strict';
 
+  /**
+   * Detects whether a response content-type represents streaming-friendly formats.
+   *
+   * @param {string} contentType - Response header value to inspect.
+   * @returns {boolean} True when the type corresponds to streaming payloads.
+   */
   function isStreamingContentType(contentType) {
     if (!contentType) return false;
     const lowered = contentType.toLowerCase();
@@ -15,6 +21,12 @@
     );
   }
 
+  /**
+   * Parses a raw line from streaming responses, attempting to extract textual content.
+   *
+   * @param {string} line - Raw NDJSON/SSE line.
+   * @returns {string} Extracted text portion or an empty string when none was found.
+   */
   function defaultParseChunk(line) {
     if (!line) return '';
 
@@ -60,6 +72,19 @@
     }
   }
 
+  /**
+   * Processes a fetch Response as a streaming payload, dispatching lifecycle callbacks.
+   *
+   * @param {Response} response - Fetch response to inspect for stream support.
+   * @param {Object} [options={}] - Streaming handlers and configuration flags.
+   * @param {boolean} [options.requireStreamingContentType=false] - Guard to ensure header validation.
+   * @param {Function} [options.parseChunk=defaultParseChunk] - Parser for each streamed line.
+   * @param {Function} [options.onStart] - Invoked before streaming begins.
+   * @param {Function} [options.onChunk] - Invoked per chunk with parsed text.
+   * @param {Function} [options.onComplete] - Invoked when the stream finishes.
+   * @param {Function} [options.onError] - Invoked when streaming throws.
+   * @returns {Promise<{handled: boolean, text: string}>} Result describing streaming outcome.
+   */
   async function tryHandleStreamingResponse(response, options = {}) {
     const {
       requireStreamingContentType = false,
