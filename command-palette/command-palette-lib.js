@@ -18,6 +18,72 @@
       backdropOpacity: 0.6,
     };
   
+    function isPlainObject(value) {
+      return Object.prototype.toString.call(value) === '[object Object]';
+    }
+
+    function deepMerge(base = {}, override = {}) {
+      const result = { ...base };
+      if (!override || typeof override !== 'object') return result;
+
+      Object.keys(override).forEach((key) => {
+        const baseValue = result[key];
+        const overrideValue = override[key];
+
+        if (Array.isArray(overrideValue)) {
+          result[key] = overrideValue.slice();
+          return;
+        }
+
+        if (isPlainObject(overrideValue) && isPlainObject(baseValue)) {
+          result[key] = deepMerge(baseValue, overrideValue);
+          return;
+        }
+
+        result[key] = overrideValue;
+      });
+
+      return result;
+    }
+
+    function sanitizeZendeskConfig(overrides = {}) {
+      const base = overrides && typeof overrides === 'object' ? overrides : {};
+      const paletteConfig = { ...base.palette };
+      const urlsConfig = { ...(base.urls || {}) };
+      const webhooksConfig = { ...(base.webhooks || {}) };
+      const quickPromptConfig = {
+        enabled: true,
+        insertMode: 'caret',
+        titlePrefix: 'Quick prompt',
+        description: 'Ad-hoc AI prompt',
+        fallback: [],
+        ...(base.quickPrompt || {}),
+      };
+      const contextConfig = {
+        includeTicket: true,
+        includeConversation: true,
+        includeSidebar: true,
+        includePageData: true,
+        ...(base.context || {}),
+      };
+      const catalogConfig = {
+        url: base.catalog?.url || '',
+        headers: { ...(base.catalog?.headers || {}) },
+        cacheMs: Number.isFinite(base.catalog?.cacheMs) ? base.catalog.cacheMs : 0,
+        fallback: Array.isArray(base.catalog?.fallback) ? base.catalog.fallback : [],
+      };
+
+      return {
+        ...base,
+        palette: paletteConfig,
+        urls: urlsConfig,
+        webhooks: webhooksConfig,
+        quickPrompt: quickPromptConfig,
+        context: contextConfig,
+        catalog: catalogConfig,
+      };
+    }
+
     const CSS = `
       :host {
         position: fixed;
@@ -1248,4 +1314,1762 @@
         return palette;
       },
     };
+
+  window.HeCommandPalette.bootstrapZendesk = function bootstrapZendesk(config = {}) {
+    console.log('[CMD zd] Initialising command palette logic');
+
+    const defaultConfig = {
+      palette: {
+        toggleKey: 'k',
+        toggleModifier: 'metaKey',
+        secondaryModifier: 'ctrlKey',
+        allowInInputs: true,
+        backdropOpacity: 0.45,
+        closeOnBackdrop: true,
+        placeholder: 'Search prompts, tools, and AI actions…',
+        emptyState: 'No matching commands found.',
+      },
+
+      urls: {
+        n8n_ai_api: {
+          url: 'https://n8n-woo.a12s.blog/webhook/14bb86a8-944e-4de2-bf39-137b56859028',
+          headers: {
+            // Authorization: 'Bearer demo-token',
+          },
+          timeoutMs: 20000,
+        },
+        n8n_predefs_api: {
+          url: 'https://nocodb.danielk.am/api/v2/tables/mwtuuj5sornu0w9/records?offset=0&limit=1000&where=&viewId=vwisqbbudajbm2xm',
+          headers: {
+            Authorization: 'Bearer demo-token',
+          },
+          timeoutMs: 20000,
+        },
+        n8n_prompts_api: {
+          url: 'https://nocodb.danielk.am/api/v2/tables/mb8tegrc6juyoi1/records?offset=0&limit=100&where=&viewId=vwg467y8kndlaf5b',
+          headers: {
+            Authorization: 'Bearer demo-token',
+          },
+          timeoutMs: 20000,
+        },
+        n8n_tools_api: {
+          url: 'https://nocodb.danielk.am/api/v2/tables/mwtuuj5sornu0w9/records?offset=0&limit=1000&where=&viewId=vwisqbbudajbm2xm',
+          headers: {
+            Authorization: 'Bearer demo-token',
+          },
+          timeoutMs: 20000,
+        },
+        n8n_db_api: {
+          url: 'https://nocodb.danielk.am/api/v2/tables/mwtuuj5sornu0w9/records?offset=0&limit=1000&where=&viewId=vwisqbbudajbm2xm',
+          headers: {
+            Authorization: 'Bearer demo-token',
+          },
+          timeoutMs: 20000,
+        },
+      },
+
+      webhooks: {
+        aiFriendlyUpdate: {
+          url: 'https://n8n-woo.a12s.blog/webhook/14bb86a8-944e-4de2-bf39-137b56859028',
+          headers: {
+            // Authorization: 'Bearer demo-token',
+          },
+          timeoutMs: 20000,
+          fallback: [
+            'Thanks for your patience while we double-check your ticket.',
+            'If anything still looks off, grab a screenshot and reply so we can jump back in.',
+          ],
+        },
+        aiTicketSummary: {
+          url: 'https://n8n-woo.a12s.blog/webhook/14bb86a8-944e-4de2-bf39-137b56859028',
+          timeoutMs: 20000,
+          headers: {
+            // Authorization: 'Bearer demo-token',
+          },
+          fallback: [
+            '• Issue: Brief description of what the customer reported.',
+            '• Steps tried: Outline the main troubleshooting completed so far.',
+            '• Next action: What we will do or monitor next.',
+          ],
+        },
+      },
+
+      quickPrompt: {
+        enabled: true,
+        webhookKey: 'aiFriendlyUpdate',
+        insertMode: 'caret',
+        titlePrefix: 'Quick prompt',
+        description: 'Ad-hoc AI prompt',
+        fallback: [
+          'I do not have a response yet - please provide more details or try again a little later.',
+        ],
+      },
+
+      context: {
+        includeTicket: true,
+        includeConversation: true,
+        includeSidebar: true,
+        includePageData: true,
+      },
+
+      catalog: {
+        url: '',
+        headers: {},
+        cacheMs: 5 * 60 * 1000,
+        fallback: [
+          {
+            label: 'Predefs (Predefined Responses)',
+            type: 'static',
+            items: [
+              {
+                id: 'warm-greeting',
+                title: 'Warm Greeting',
+                description: 'Friendly hello with gratitude.',
+                body: 'Hi {{ticket.requester.first_name}},\n\nThanks so much for reaching out today! I just reviewed your ticket and wanted to share a quick update.',
+                tags: ['greeting', 'warm'],
+                insertMode: 'caret',
+              },
+              {
+                id: 'closing-thanks',
+                title: 'Closing Thanks',
+                description: 'Wrap-up message encouraging follow-up.',
+                body: 'You are all set! If anything else crops up, reply to this ticket and we will take another look right away.',
+                tags: ['closing', 'thanks'],
+                insertMode: 'caret',
+              },
+              {
+                id: 'sample-reply',
+                title: 'Sample Reply',
+                description: 'Wrap-up message encouraging follow-up.',
+                body: 'This is a sample reply.',
+                tags: ['sample', 'reply'],
+                insertMode: 'caret',
+              },
+            ],
+          },
+          {
+            label: 'Prompts (AI Powered)',
+            type: 'webhook',
+            items: [
+              {
+                id: 'ai-friendly-update',
+                title: 'Draft friendly update',
+                description: 'Generate a warm progress update for the customer.',
+                webhookKey: 'aiFriendlyUpdate',
+                prompt:
+                  'Draft a friendly progress update for a customer, thanking them for their patience and explaining the next step in plain language.',
+                transform: {
+                  insertMode: 'caret',
+                },
+              },
+              {
+                id: 'ai-ticket-summary',
+                title: 'Summarize ticket for handoff',
+                description: 'Summarise the ticket in 3 bullet points.',
+                webhookKey: 'aiTicketSummary',
+                prompt:
+                  'Summarize the current support ticket in three concise bullet points that cover the reported issue, work performed, and the next action.',
+                transform: {
+                  insertMode: 'caret',
+                },
+              },
+            ],
+          },
+          {
+            label: 'Tools & Shortcuts',
+            type: 'utility',
+            items: [
+              {
+                id: 'open-help',
+                title: 'Open Help Center',
+                description: 'Launch the Zendesk help docs in a new tab.',
+                icon: '<path d="M12 5v14m7-7H5"/>',
+                href: 'https://support.zendesk.com/hc/en-us',
+                target: '_blank',
+              },
+              {
+                id: 'refresh-composer',
+                title: 'Refresh Composer',
+                description: 'Reload the page to recover a stuck composer.',
+                icon: '<path d="M4 4v6h6M20 20v-6h-6M20 4l-3.5 3.5M4 20l3.5-3.5"/>',
+                action: 'reload',
+              },
+            ],
+          },
+          {
+            label: 'Sidebar · System Status Report',
+            type: 'utility',
+            items: [
+              {
+                id: 'sidebar-ssr-open',
+                title: 'Open System Status Report',
+                description: 'Open the System Status Report overlay for the current ticket.',
+                icon: '<path d="M5 12l4 4L19 6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+                tags: ['sidebar', 'ssr', 'open'],
+                sidebarAction: 'ssr:open',
+              },
+              {
+                id: 'sidebar-ssr-copy',
+                title: 'Copy System Status Report',
+                description: 'Copy the parsed SSR contents to your clipboard.',
+                icon: '<path d="M4 4h12v12H4z"/>',
+                tags: ['sidebar', 'ssr', 'copy'],
+                sidebarAction: 'ssr:copy',
+              },
+              {
+                id: 'sidebar-ssr-refresh',
+                title: 'Refresh System Status Report',
+                description: 'Reload the System Status Report cache before reviewing.',
+                icon: '<path d="M13.1 12c-1.2 1.5-3 2.5-5.1 2.5-3.6 0-6.5-2.9-6.5-6.5S4.4 1.5 8 1.5c2.2 0 4.1 1.1 5.3 2.7m.2-3.7V4c0 .3-.2.5-.5.5H9.5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+                tags: ['sidebar', 'ssr', 'refresh'],
+                sidebarAction: 'ssr:refresh',
+              },
+            ],
+          },
+          {
+            label: 'Sidebar · Conversation Log',
+            type: 'utility',
+            items: [
+              {
+                id: 'sidebar-conv-open',
+                title: 'Open Conversation Log',
+                description: 'Open the full conversation history overlay.',
+                icon: '<path d="M4 5h16M4 12h10M4 19h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+                tags: ['sidebar', 'conversation', 'open'],
+                sidebarAction: 'conv:open',
+              },
+              {
+                id: 'sidebar-conv-copy',
+                title: 'Copy Conversation Log',
+                description: 'Copy the conversation log as NDJSON for handoff or analysis.',
+                icon: '<path d="M5 4h10v10H5z"/>',
+                tags: ['sidebar', 'conversation', 'copy'],
+                sidebarAction: 'conv:copy',
+              },
+            ],
+          },
+          {
+            label: 'Sidebar · Domain & DNS',
+            type: 'utility',
+            items: [
+              {
+                id: 'sidebar-domain-open',
+                title: 'Open Domain & DNS',
+                description: 'Launch the Domain & DNS overlay for quick investigation.',
+                icon: '<path d="M12 3a9 9 0 1 0 9 9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+                tags: ['sidebar', 'domain', 'dns', 'open'],
+                sidebarAction: 'domain:open',
+              },
+              {
+                id: 'sidebar-domain-copy',
+                title: 'Copy Domain & DNS',
+                description: 'Copy the current domain details and DNS records to clipboard.',
+                icon: '<path d="M6 6h12v12H6z"/>',
+                tags: ['sidebar', 'domain', 'dns', 'copy'],
+                sidebarAction: 'domain:copy',
+              },
+            ],
+          },
+          {
+            label: 'Sidebar · AI Assistants',
+            type: 'utility',
+            items: [
+              {
+                id: 'sidebar-ai-open',
+                title: 'Browse AI Assistants',
+                description: 'Open the AI assistants directory overlay to search by category.',
+                icon: '<path d="M12 5a7 7 0 1 0 7 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+                tags: ['sidebar', 'ai', 'assistants', 'open'],
+                sidebarAction: 'ai:open',
+              },
+              {
+                id: 'sidebar-ai-panel',
+                title: 'Show Floating AI Panel',
+                description: 'Pop open the floating AI assistants chat panel.',
+                icon: '<path d="M5 19h14V5H5v3H3v8h2z"/>',
+                tags: ['sidebar', 'ai', 'panel'],
+                sidebarAction: 'ai:panel',
+              },
+            ],
+          },
+          {
+            label: 'Sidebar · Ticket Data',
+            type: 'utility',
+            items: [
+              {
+                id: 'sidebar-data-copy',
+                title: 'Copy Ticket Data Bundle',
+                description: 'Copy ticket details, SSR, and conversation data as NDJSON.',
+                icon: '<path d="M4 4h10v12H4z"/>',
+                tags: ['sidebar', 'ticket-data', 'copy'],
+                sidebarAction: 'data:copy',
+              },
+              {
+                id: 'sidebar-data-refresh',
+                title: 'Ticket Data · Refresh Notice',
+                description: 'Trigger the ticket data refresh notification.',
+                icon: '<path d="M12 5v2m0 8v2m8-8h-2M6 12H4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+                tags: ['sidebar', 'ticket-data', 'refresh'],
+                sidebarAction: 'data:refresh',
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const CONFIG = deepMerge(defaultConfig, sanitizeZendeskConfig(config));
+
+    const palette = window.HeCommandPalette.create({
+      toggleKey: '/',
+      toggleModifier: 'ctrlKey',
+      secondaryModifier: 'metaKey',
+      allowInInputs: true,
+      backdropOpacity: 0.45,
+      closeOnBackdrop: true,
+      placeholder: 'Search prompts, tools, and AI actions…',
+      emptyState: 'No matching commands found.',
+    });
+
+    const editorState = window.ZendeskEditorUtils.createEditorState();
+    let previewKeyHandler = null;
+    let previewKeyUpHandler = null;
+
+  const ticketDetailsCache = new Map();
+  const conversationCache = new Map();
+
+  /**
+   * Determines whether a keyboard event matches the configured palette toggle shortcut.
+   *
+   * @param {KeyboardEvent} event - The keyboard event fired by the host page or iframe.
+   * @returns {boolean} True when the event matches the toggle shortcut, false otherwise.
+   */
+  function isToggleShortcut(event) {
+    const key = typeof event.key === 'string' ? event.key.toLowerCase() : event.key;
+    if (!key) return false;
+
+    const toggleKey = (CONFIG.palette.toggleKey || '/').toLowerCase();
+
+    const matchesKey = key === toggleKey || (toggleKey === '/' && key === '?');
+    if (!matchesKey) return false;
+
+    const configuredModifiers = [
+      CONFIG.palette.toggleModifier,
+      CONFIG.palette.secondaryModifier,
+    ].filter((modifier) => typeof modifier === 'string' && modifier.length);
+
+    if (!configuredModifiers.length) {
+      const fallbackMatch = event.ctrlKey || event.metaKey;
+      if (fallbackMatch) {
+        console.log('[CMD zd] Shortcut matched via default fallback (no configured modifiers)', {
+          key,
+          toggleKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+        });
+      }
+      return fallbackMatch;
+    }
+
+    const hasConfiguredModifier = configuredModifiers.some((modifier) => event[modifier]);
+    if (hasConfiguredModifier) {
+      console.log('[CMD zd] Shortcut matched with configured modifier', {
+        key,
+        toggleKey,
+        modifiers: configuredModifiers,
+      });
+      return true;
+    }
+
+    // Fallback to Ctrl or Cmd if neither configured modifier matched
+    const fallbackMatch = event.ctrlKey || event.metaKey;
+    if (fallbackMatch) {
+      console.log('[CMD zd] Shortcut matched via fallback modifier', {
+        key,
+        toggleKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+      });
+    }
+    return fallbackMatch;
+  }
+
+  /**
+   * Attempts to capture a reference to the currently focused Zendesk composer or input element.
+   *
+   * @param {EventTarget} target - The event target that triggered the capture attempt.
+   */
+  function captureEditableFromTarget(target) {
+    console.log('[CMD zd] captureEditableFromTarget', {
+      targetType: target?.nodeName || target?.constructor?.name || typeof target,
+    });
+    // Ignore events originating from inside the palette so we don't lose the editor reference
+    try {
+      if (palette && (target === palette || (target && typeof target.closest === 'function' && (target.closest('he-command-palette') || palette.contains(target))))) {
+        return;
+      }
+      const path = typeof target?.composedPath === 'function' ? target.composedPath() : null;
+      if (path && path.includes(palette)) return;
+    } catch (_) {}
+    if (target && target.nodeType === Node.ELEMENT_NODE) {
+      captureCurrentEditable(target);
+      console.log('[CMD zd] Captured editable from element', {
+        tag: target.tagName,
+      });
+      return;
+    }
+
+    if (target && target.nodeType === Node.DOCUMENT_NODE) {
+      const active = target.activeElement;
+      if (active) {
+        captureCurrentEditable(active);
+        console.log('[CMD zd] Captured editable from document activeElement', {
+          tag: active.tagName,
+        });
+        return;
+      }
+    }
+
+    captureCurrentEditable();
+    console.log('[CMD zd] Captured editable via fallback state');
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * GLOBAL EVENT HOOKS
+   * ---------------------------------------------------------------------------
+   */
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      // Ignore all key events originating inside the palette itself so typing and navigation work normally
+      try {
+        if (palette && (palette === event.target || palette.contains(event.target))) {
+          return;
+        }
+        const path = typeof event.composedPath === 'function' ? event.composedPath() : null;
+        if (path && path.includes(palette)) {
+          return;
+        }
+      } catch (_) {}
+
+      if (!isToggleShortcut(event)) return;
+
+      console.log('[CMD zd] Global shortcut handler triggered', {
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        activeElement: document.activeElement?.tagName,
+      });
+
+      captureEditableFromTarget(event.target);
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      if (palette.dataset.state === 'open') {
+        console.log('[CMD zd] Closing palette via global handler');
+        palette.close();
+      } else {
+        console.log('[CMD zd] Opening palette via global handler');
+        palette.open();
+      }
+    },
+    true
+  );
+
+  const frameKeyHandler = (event) => {
+    // Key events inside the palette should never affect global/frame shortcuts
+    try {
+      if (palette && (palette === event.target || palette.contains(event.target))) {
+        return;
+      }
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : null;
+      if (path && path.includes(palette)) {
+        return;
+      }
+    } catch (_) {}
+
+    if (!isToggleShortcut(event)) return;
+    console.log('[CMD zd] Frame shortcut handler triggered', {
+      frameHref: event.view?.location?.href,
+      key: event.key,
+    });
+    captureEditableFromTarget(event.target);
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (palette.dataset.state === 'open') {
+      console.log('[CMD zd] Closing palette via frame handler');
+      palette.close();
+    } else {
+      console.log('[CMD zd] Opening palette via frame handler');
+      palette.open();
+    }
+  };
+
+  const frameFocusHandler = (event) => {
+    console.log('[CMD zd] Frame focusin event', {
+      targetTag: event.target?.tagName,
+    });
+    captureEditableFromTarget(event.target);
+  };
+
+  const boundFrameDocuments = new WeakSet();
+
+  /**
+   * Binds the global palette shortcut inside Zendesk iframes (e.g., composer frames) so
+   * keyboard events are captured regardless of focus context.
+   */
+  function bindShortcutInFrames() {
+    const frames = Array.from(document.querySelectorAll('iframe'));
+    frames.forEach((frame) => {
+      try {
+        const doc = frame.contentWindow && frame.contentWindow.document;
+        if (!doc) return;
+        if (boundFrameDocuments.has(doc)) return;
+        boundFrameDocuments.add(doc);
+        doc.addEventListener('keydown', frameKeyHandler, true);
+        doc.addEventListener('focusin', frameFocusHandler, true);
+        console.log('[CMD zd] Bound shortcuts inside iframe', {
+          frameSrc: frame.src,
+        });
+      } catch (_) {}
+    });
+  }
+
+  bindShortcutInFrames();
+  const iframeObserver = new MutationObserver(() => bindShortcutInFrames());
+  iframeObserver.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  console.log('[CMD zd] MutationObserver initialised for iframe tracking');
+
+  document.addEventListener('focusin', (event) => {
+    console.log('[CMD zd] Document focusin event', {
+      targetTag: event.target?.tagName,
+    });
+    // Do not clobber stored editor when focus moves inside the palette
+    try {
+      const t = event.target;
+      if (palette && (t === palette || (t && typeof t.closest === 'function' && (t.closest('he-command-palette') || palette.contains(t))))) {
+        return;
+      }
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : null;
+      if (path && path.includes(palette)) return;
+    } catch (_) {}
+    captureEditableFromTarget(event.target);
+  });
+
+  palette.addEventListener('he:open', () => {
+    captureEditableFromTarget(document.activeElement);
+    palette.clearStatus();
+    palette.hidePreview(true);
+    clearPreviewKeyHandler();
+    palette.setStatus('Type to filter commands or use arrow keys to browse.', { variant: 'info' });
+    console.log('[CMD zd] Palette opened');
+
+    // Enforce layout so the dialog anchors near the top and expands downward
+    try {
+      if (palette && palette.shadowRoot && !palette.shadowRoot.querySelector('style[data-he-layout]')) {
+        const style = document.createElement('style');
+        style.setAttribute('data-he-layout', 'true');
+        style.textContent = `:host{place-content:start center !important;padding-top:4rem !important;padding-bottom:4rem !important;}`;
+        palette.shadowRoot.appendChild(style);
+      }
+    } catch (_) {}
+
+    // Ensure single-step navigation: intercept input keydown to avoid duplicate handlers in the component
+    try {
+      const input = palette.input || (palette.shadowRoot && palette.shadowRoot.querySelector('textarea'));
+      if (input && !input.__heNavFix) {
+        input.__heNavFix = true;
+        input.addEventListener(
+          'keydown',
+          (event) => {
+            if (palette.dataset.state !== 'open') return;
+            let delta = 0;
+            if (event.key === 'ArrowDown') delta = 1;
+            else if (event.key === 'ArrowUp') delta = -1;
+            else if (event.key === 'Tab') delta = event.shiftKey ? -1 : 1;
+            else {
+              // Special-case Enter: let palette handle plain Enter; allow Shift+Enter newline
+              if (event.key === 'Enter') {
+                if (event.shiftKey) {
+                  // Allow newline to insert; block component handler
+                  if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+                  else event.stopPropagation();
+                  // Do not preventDefault so textarea inserts a new line
+                }
+                // For plain Enter, do nothing here so the component handles selection/submit
+                return;
+              }
+
+              // Default: allow typing but don't let host page handlers see it
+              if (event.key !== 'Escape') {
+                event.stopPropagation();
+              }
+              return;
+            }
+
+            event.preventDefault();
+            // Stop other key handlers bound to the input from running twice
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            } else {
+              event.stopPropagation();
+            }
+
+            try {
+              if (typeof palette._moveSelection === 'function') {
+                palette._moveSelection(delta);
+              }
+            } catch (_) {}
+          },
+          true
+        );
+      }
+    } catch (_) {}
+  });
+
+  palette.addEventListener('he:close', () => {
+    palette.clearStatus();
+    palette.hidePreview(true);
+    clearPreviewKeyHandler();
+    console.log('[CMD zd] Palette closed');
+  });
+
+  palette.addEventListener('he:submit', (event) => {
+    const query = (event.detail?.queryRaw ?? event.detail?.query ?? '').trim();
+    if (!query) return;
+    console.log('[CMD zd] Palette submit', { query });
+    captureCurrentEditable();
+    handleQuickPrompt(query);
+  });
+
+  document.body.appendChild(palette);
+
+  // Apply layout override once at creation time so the palette grows downward
+  try {
+    if (palette && palette.shadowRoot && !palette.shadowRoot.querySelector('style[data-he-layout]')) {
+      const style = document.createElement('style');
+      style.setAttribute('data-he-layout', 'true');
+      style.textContent = `:host{place-content:start center !important;padding-top:4rem !important;padding-bottom:4rem !important;}`;
+      palette.shadowRoot.appendChild(style);
+    }
+  } catch (_) {}
+
+  // Guard: when the palette is open, ensure navigation keys and space only affect the palette
+  // and do not bubble to the host page (which can cause skipping or swallow spaces).
+  palette.addEventListener(
+    'keydown',
+    (event) => {
+      if (palette.dataset.state !== 'open') return;
+      const key = event.key;
+      if (
+        key === 'ArrowDown' ||
+        key === 'ArrowUp' ||
+        key === 'Tab' ||
+        key === ' ' ||
+        key === 'Spacebar'
+      ) {
+        // Allow the palette's own handlers to run but stop the page from also reacting.
+        event.stopPropagation();
+      }
+    }
+  );
+
+  /**
+   * ---------------------------------------------------------------------------
+   * SETUP COMMAND DATA
+   * ---------------------------------------------------------------------------
+   */
+  let cachedCatalogGroups = null;
+  let cachedCatalogFetchedAt = 0;
+
+  initializeCatalog().catch((error) => {
+    console.error('Command palette initialization failed:', error);
+    palette.setStatus('Failed to load commands.', { variant: 'danger' });
+  });
+
+  /**
+   * Loads palette data either from a remote catalog or the local fallback set.
+   *
+   * @param {boolean} [force=false] - When true, bypasses cached catalog data.
+   * @returns {Promise<void>} Resolves once the palette data has been applied.
+   */
+  async function initializeCatalog(force = false) {
+    const { groups, source } = await loadCatalogGroups(force);
+    const paletteData = buildPaletteData(groups);
+    palette.setData(paletteData);
+
+    if (!paletteData.length) {
+      palette.setStatus('No commands available. Check catalog configuration.', { variant: 'warning' });
+      return;
+    }
+
+    const statusMessage =
+      source === 'remote'
+        ? 'Commands loaded from remote catalog.'
+        : source === 'remote-cache'
+        ? 'Commands loaded from cached catalog.'
+        : 'Using fallback command set.';
+
+    const variant = source === 'fallback' ? 'warning' : 'success';
+    palette.setStatus(statusMessage, { variant });
+  }
+
+  /**
+   * Fetches command groups from the configured catalog endpoint, falling back to the
+   * local configuration when the request fails or caching is sufficient.
+   *
+   * @param {boolean} [force=false] - Forces a network fetch instead of using cached data.
+   * @returns {Promise<{groups: Array, source: 'remote'|'remote-cache'|'fallback'}>}
+   *   Resolves with catalog groups and the data source indicator.
+   */
+  async function loadCatalogGroups(force = false) {
+    const catalog = CONFIG.catalog || {};
+    const fallback = Array.isArray(catalog.fallback) ? catalog.fallback : [];
+
+    if (!catalog.url) {
+      return { groups: fallback, source: 'fallback' };
+    }
+
+    const now = Date.now();
+    const cacheMs = Number.isFinite(catalog.cacheMs) ? catalog.cacheMs : 0;
+
+    if (
+      !force &&
+      cachedCatalogGroups &&
+      cacheMs > 0 &&
+      now - cachedCatalogFetchedAt < cacheMs
+    ) {
+      return { groups: cachedCatalogGroups, source: 'remote-cache' };
+    }
+
+    try {
+      const response = await fetch(catalog.url, {
+        headers: catalog.headers || {},
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const raw = await response.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (error) {
+        throw new Error('Catalog response was not valid JSON.');
+      }
+
+      const groups = Array.isArray(data?.groups) ? data.groups : [];
+      if (!groups.length) {
+        throw new Error('Catalog JSON missing a non-empty "groups" array.');
+      }
+
+      cachedCatalogGroups = groups;
+      cachedCatalogFetchedAt = now;
+      return { groups, source: 'remote' };
+    } catch (error) {
+      console.warn('Command catalog fetch failed, using fallback groups.', error);
+      cachedCatalogGroups = fallback;
+      cachedCatalogFetchedAt = now;
+      return { groups: fallback, source: 'fallback' };
+    }
+  }
+
+  /**
+   * Converts a catalog group configuration into palette dataset consumable by the UI component.
+   *
+   * @param {Array} [groups=[]] - Catalog group definitions.
+   * @returns {Array} Formatted dataset to pass to `palette.setData`.
+   */
+  function buildPaletteData(groups = []) {
+    return groups
+      .map((group) => {
+        const items = (group.items || [])
+          .map((item) => buildPaletteItem(group, item))
+          .filter(Boolean);
+
+        if (!items.length) return null;
+
+        return {
+          label: group.label || 'Commands',
+          items,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /**
+   * Normalizes an individual catalog entry into a palette command definition.
+   *
+   * @param {Object} group - The parent catalog group definition.
+   * @param {Object} item - The raw catalog item definition.
+   * @returns {Object|null} Palette item configuration or null when unsupported.
+   */
+  function buildPaletteItem(group, item) {
+    const groupType = (group.type || '').toLowerCase();
+    const itemType = (item.type || groupType || 'static').toLowerCase();
+
+    switch (itemType) {
+      case 'static':
+      case 'snippet':
+        return buildStaticCommand(item);
+      case 'webhook':
+      case 'ai':
+        return buildWebhookCommand(item);
+      case 'utility':
+      case 'tool':
+        return buildUtilityCommand(item);
+      default:
+        console.warn('Unknown command type, skipping item:', itemType, item);
+        return null;
+    }
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * HELPERS: DOM & EDITOR
+   * ---------------------------------------------------------------------------
+   */
+  /**
+   * Persists a reference to the current Zendesk editor for later text insertion.
+   *
+   * @param {Node} node - Optional node to treat as the active editor root.
+   */
+  function captureCurrentEditable(node) {
+    window.ZendeskEditorUtils.captureCurrentEditable(editorState, node);
+  }
+
+  /**
+   * Resolves the node that should receive text insertion from palette commands.
+   *
+   * @returns {HTMLElement|null} The active contenteditable or input element, if found.
+   */
+  function getActiveEditable() {
+    const node = window.ZendeskEditorUtils.getActiveEditable(editorState);
+    if (!node) return null;
+    if (node.isContentEditable === true) return node;
+    try {
+      if (typeof node.querySelector === 'function') {
+        const inner = node.querySelector('[contenteditable="true"]');
+        if (inner) return inner;
+      }
+    } catch (_) {}
+    return node;
+  }
+
+  /**
+   * Extracts the current ticket ID using DOM heuristics within Zendesk.
+   *
+   * @param {Node} node - DOM node near the editor where the search should begin.
+   * @returns {string|null} The ticket ID when located.
+   */
+  function getTicketIdFromDom(node) {
+    return window.ZendeskEditorUtils.getTicketIdFromDom(node);
+  }
+
+  /**
+   * Identifies the current ticket ID by parsing the Zendesk URL.
+   *
+   * @returns {string|null} Ticket ID when present in the URL; otherwise null.
+   */
+  function getTicketIdFromUrl() {
+    return window.ZendeskEditorUtils.getTicketIdFromUrl();
+  }
+
+  /**
+   * Normalizes an insert mode configuration to the supported palette values.
+   *
+   * @param {string} mode - Requested insert mode.
+   * @returns {string} The normalized insert mode.
+   */
+  function normalizeInsertMode(mode) {
+    return window.TextInsertionUtils.normalizeInsertMode(mode);
+  }
+
+  /**
+   * Inserts text (or HTML) into the currently active Zendesk editor, with clipboard fallback.
+   *
+   * @param {string} text - The content to insert.
+   * @param {string} [mode='caret'] - Preferred insertion mode.
+   * @param {Object} [options={}] - Additional insertion flags.
+   */
+  function insertTextIntoEditable(text, mode = 'caret', options = {}) {
+    const target = getActiveEditable();
+    const logger = (message, level = 'log') => console[level]('Cmd Logs:', message);
+
+    const result = window.TextInsertionUtils.insertText(target, text, {
+      mode,
+      logger,
+      asHtml: options.asHtml === true,
+      onCopyFallback: (value) => void navigator.clipboard.writeText(value),
+    });
+
+    if (!result.success) {
+      palette.setStatus('Copied response to clipboard.', { variant: 'warning' });
+    }
+  }
+
+  /**
+   * Removes any keyboard handlers bound to the palette preview controls.
+   */
+  function clearPreviewKeyHandler() {
+    if (previewKeyHandler) {
+      palette.removeEventListener('keydown', previewKeyHandler, true);
+      previewKeyHandler = null;
+    }
+    if (previewKeyUpHandler) {
+      palette.removeEventListener('keyup', previewKeyUpHandler, true);
+      previewKeyUpHandler = null;
+    }
+  }
+
+  /**
+   * Encodes unsafe HTML characters to avoid script injection when rendering plain text.
+   *
+   * @param {string} value - Raw string value.
+   * @returns {string} HTML escaped string.
+   */
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
+   * Converts plain text or lightweight markdown-like content into HTML for previews.
+   *
+   * @param {string} text - Source text to convert.
+   * @returns {string} Sanitized HTML string.
+   */
+  function convertTextToHtml(text) {
+    if (!text) return '';
+    const raw = String(text);
+
+    // Convert markdown-like patterns
+    let processed = raw
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>')
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+    function escapeTextPreservingTags(value) {
+      const parts = String(value).split(/(<\/?(?:a|strong|em|code)\b[^>]*>)/);
+      return parts
+        .map((part) => (/^<\/?(?:a|strong|em|code)\b[^>]*>$/.test(part) ? part : escapeHtml(part)))
+        .join('');
+    }
+
+    const blocks = processed.split(/\n\s*\n/);
+    let html = '';
+    let inNumberedSequence = false;
+
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      const block = blocks[blockIndex].trim();
+      if (!block) continue;
+
+      if (block === '---') {
+        html += '<hr>';
+        inNumberedSequence = false;
+        continue;
+      }
+
+      if (block.startsWith('###')) {
+        const content = escapeTextPreservingTags(block.replace(/^###\s*/, ''));
+        html += `<h3>${content}</h3>`;
+        inNumberedSequence = false;
+        continue;
+      }
+      if (block.startsWith('##')) {
+        const content = escapeTextPreservingTags(block.replace(/^##\s*/, ''));
+        html += `<h2>${content}</h2>`;
+        inNumberedSequence = false;
+        continue;
+      }
+      if (block.startsWith('#')) {
+        const content = escapeTextPreservingTags(block.replace(/^#\s*/, ''));
+        html += `<h1>${content}</h1>`;
+        inNumberedSequence = false;
+        continue;
+      }
+
+      const lines = block.split('\n');
+      const firstLine = lines[0].trim();
+
+      if (/^\d+\.\s/.test(firstLine)) {
+        if (!inNumberedSequence) {
+          html += '<ol>';
+          inNumberedSequence = true;
+        }
+
+        const mainContent = escapeTextPreservingTags(firstLine.replace(/^\d+\.\s/, ''));
+        html += `<li>${mainContent}`;
+
+        for (let j = 1; j < lines.length; j++) {
+          const subLine = lines[j];
+          const trimmedSub = subLine.trim();
+          if (!trimmedSub) continue;
+
+          if (/^\s+[-*•]\s/.test(subLine)) {
+            const subContent = escapeTextPreservingTags(trimmedSub.replace(/^[-*•]\s/, ''));
+            html += `<br>&nbsp;&nbsp;• ${subContent}`;
+          } else if (/^\s+/.test(subLine)) {
+            const subContent = escapeTextPreservingTags(trimmedSub);
+            html += `<br>&nbsp;&nbsp;${subContent}`;
+          }
+        }
+        html += '</li>';
+
+        if (blockIndex + 1 >= blocks.length || !/^\d+\.\s/.test(blocks[blockIndex + 1].trim())) {
+          html += '</ol>';
+          inNumberedSequence = false;
+        }
+        continue;
+      }
+
+      if (/^[-*•]\s/.test(firstLine)) {
+        inNumberedSequence = false;
+        html += '<ul>';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          if (/^[-*•]\s/.test(trimmed)) {
+            const content = escapeTextPreservingTags(trimmed.replace(/^[-*•]\s/, ''));
+            html += `<li>${content}</li>`;
+          } else if (/^\s*[-*•]\s/.test(trimmed)) {
+            const content = escapeTextPreservingTags(trimmed.replace(/^\s*[-*•]\s/, ''));
+            html += `<li style="margin-left: 20px;">${content}</li>`;
+          }
+        }
+        html += '</ul>';
+        continue;
+      }
+
+      inNumberedSequence = false;
+      const content = escapeTextPreservingTags(block).replace(/\n/g, '<br>');
+      html += `<p>${content}</p>`;
+    }
+
+    if (inNumberedSequence) {
+      html += '</ol>';
+    }
+
+    return html;
+  }
+
+  /**
+   * Retrieves Zendesk ticket metadata via the REST API and caches subsequent lookups.
+   *
+   * @param {string} ticketId - Zendesk ticket identifier.
+   * @returns {Promise<Object|null>} Ticket payload or null when unavailable.
+   */
+  async function fetchTicketDetails(ticketId) {
+    if (!ticketId || CONFIG.context?.includeTicket === false) return null;
+    const cached = ticketDetailsCache.get(ticketId);
+    if (cached) return cached;
+
+    try {
+      const params = new URLSearchParams({ include: 'metric_set,groups,users,organizations,custom_fields' });
+      const response = await fetch(`${location.origin}/api/v2/tickets/${ticketId}.json?${params.toString()}`, {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error(`ticket fetch ${response.status}`);
+      const data = await response.json();
+      ticketDetailsCache.set(ticketId, data);
+      return data;
+    } catch (error) {
+      console.warn('Cmd Logs: Failed to fetch ticket details', error);
+      return null;
+    }
+  }
+
+  /**
+   * Pulls a conversational log for the given ticket to provide AI commands with context.
+   *
+   * @param {string} ticketId - Zendesk ticket identifier.
+   * @returns {Promise<Object|null>} Conversation context or null when the request fails.
+   */
+  async function fetchConversationContext(ticketId) {
+    if (!ticketId || CONFIG.context?.includeConversation === false) return null;
+    const cached = conversationCache.get(ticketId);
+    if (cached?.loaded) return cached;
+
+    try {
+      const response = await fetch(`${location.origin}/api/v2/tickets/${ticketId}/conversation_log.json`, {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error(`conversation fetch ${response.status}`);
+      const data = await response.json();
+      const payload = Array.isArray(data) && data.length ? data[0] : data;
+      const events = Array.isArray(payload?.events) ? payload.events : [];
+
+      let customerName = '';
+      let agentName = '';
+      let lastEndUserMessage = '';
+
+      for (let i = events.length - 1; i >= 0; i--) {
+        const event = events[i];
+        const name = event?.author?.display_name || event?.author?.name || '';
+        const type = event?.author?.type || '';
+
+        if (!agentName && type === 'agent') agentName = name;
+        if (!lastEndUserMessage && (type === 'end_user' || type === 'customer' || type === 'end-user')) {
+          customerName = name || customerName;
+          const content = event?.content;
+          if (content?.type === 'text' && content?.text) lastEndUserMessage = content.text;
+          else if (content?.body) lastEndUserMessage = content.body;
+          else if (content?.text) lastEndUserMessage = content.text;
+        }
+
+        if (customerName && lastEndUserMessage && agentName) break;
+      }
+
+      const first = (value) => (value || '').trim().split(/\s+/)[0] || '';
+      const context = {
+        loaded: true,
+        events,
+        customerName,
+        customerFirstName: first(customerName),
+        agentName,
+        agentFirstName: first(agentName),
+        lastEndUserMessage,
+      };
+
+      conversationCache.set(ticketId, context);
+      return context;
+    } catch (error) {
+      console.warn('Cmd Logs: Failed to fetch conversation log', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extracts SSR (server-side rendered) sidebar data for the current ticket when present.
+   *
+   * @param {string} ticketId - Zendesk ticket identifier.
+   * @returns {string} Raw sidebar text content.
+   */
+  function getSSRData(ticketId) {
+    if (!ticketId || CONFIG.context?.includeSidebar === false) return '';
+    const selector = `[data-test-id="ticket-${ticketId}-custom-layout"]`;
+    const container = document.querySelector(selector);
+    if (!container) return '';
+
+    const ssrTextarea = container.querySelector('textarea[data-test-id="ticket-form-field-multiline-field-22871957"]');
+    if (ssrTextarea && typeof ssrTextarea.value === 'string') {
+      return ssrTextarea.value.trim();
+    }
+
+    const ssrBlock = container.querySelector('[data-test-id="ssr-section"]') || container;
+    return ssrBlock ? (ssrBlock.innerText || ssrBlock.textContent || '').trim() : '';
+  }
+
+  /**
+   * Gathers optional data sources (sidebar, heCollector scrape) to enrich AI payloads.
+   *
+   * @param {string} ticketId - Zendesk ticket identifier.
+   * @returns {Promise<Object>} Additional context keyed by source.
+   */
+  async function collectAdditionalData(ticketId) {
+    const additional = {};
+    try {
+      if (CONFIG.context?.includeSidebar !== false) {
+        const ssr = getSSRData(ticketId);
+        if (ssr) additional.ssrData = ssr;
+      }
+
+      if (CONFIG.context?.includePageData !== false && window.heCollector && typeof window.heCollector.scrapePage === 'function') {
+        try {
+          additional.pageData = window.heCollector.scrapePage();
+        } catch (collectorError) {
+          console.warn('Cmd Logs: heCollector scrape failed', collectorError);
+        }
+      }
+    } catch (error) {
+      console.warn('Cmd Logs: collectAdditionalData failed', error);
+    }
+
+    return additional;
+  }
+
+  /**
+   * Aggregates all Zendesk-specific context objects for AI requests.
+   *
+   * @param {string} ticketId - Zendesk ticket identifier.
+   * @returns {Promise<Object|null>} Composite context payload when data is available.
+   */
+  async function buildZendeskContext(ticketId) {
+    if (!ticketId) return null;
+
+    const [ticketDetails, conversation, additional] = await Promise.all([
+      fetchTicketDetails(ticketId),
+      fetchConversationContext(ticketId),
+      collectAdditionalData(ticketId),
+    ]);
+
+    const context = { ticketId };
+
+    if (ticketDetails) context.ticket = ticketDetails;
+    if (conversation) context.conversation = conversation;
+    if (additional && Object.keys(additional).length) context.additional = additional;
+
+    return Object.keys(context).length ? context : null;
+  }
+
+  /**
+   * Handles submission of free-form commands typed directly into the palette input.
+   *
+   * @param {string} query - Raw user-entered prompt.
+   */
+  function handleQuickPrompt(query) {
+    const settings = CONFIG.quickPrompt || {};
+    if (settings.enabled === false) {
+      palette.setStatus('Quick prompts are disabled in the configuration.', { variant: 'warning' });
+      return;
+    }
+
+    const webhookKey = settings.webhookKey;
+    if (!webhookKey || !CONFIG.webhooks[webhookKey]) {
+      palette.setStatus('Quick prompt webhook is not configured.', { variant: 'danger' });
+      return;
+    }
+
+    const displayTitle = truncateText(`${settings.titlePrefix || 'Quick prompt'}: ${query}`, 72);
+
+    const command = {
+      id: 'quick-prompt',
+      title: displayTitle,
+      description: settings.description || 'Runs the default AI webhook with your prompt.',
+      prompt: query,
+      webhookKey,
+      insertMode: settings.insertMode || 'caret',
+      fallback: Array.isArray(settings.fallback) ? settings.fallback : [],
+    };
+
+    console.log('Cmd Logs: Quick prompt', { query, webhookKey });
+    runAiCommand(command);
+  }
+
+  /**
+   * Truncates text to the desired length while appending ellipsis when required.
+   *
+   * @param {string} text - Original string value.
+   * @param {number} [maxLength=72] - Maximum characters allowed.
+   * @returns {string} Truncated text with ellipsis when applicable.
+   */
+  function truncateText(text, maxLength = 72) {
+    const value = String(text ?? '');
+    if (value.length <= maxLength) return value;
+    return `${value.slice(0, maxLength - 3)}...`;
+  }
+
+  /**
+   * Creates a palette command for static snippets backed by local catalog configuration.
+   *
+   * @param {Object} item - Static snippet definition.
+   * @returns {Object|null} Palette item descriptor.
+   */
+  function buildStaticCommand(item) {
+    if (!item || !item.body) return null;
+
+    const insertMode = normalizeInsertMode(item.insertMode);
+
+    return {
+      title: item.title || 'Snippet',
+      description: item.description || '',
+      tags: item.tags,
+      shortcut: item.shortcut,
+      keepOpen: true,
+      onSelect: () =>
+        showPreview({
+          title: item.title || 'Snippet',
+          text: item.body,
+          variant: 'info',
+          insertMode,
+        }),
+    };
+  }
+
+  /**
+   * Creates a palette command that invokes an external webhook to produce a dynamic response.
+   *
+   * @param {Object} item - Webhook catalog configuration.
+   * @returns {Object|null} Palette item descriptor configured for AI execution.
+   */
+  function buildWebhookCommand(item) {
+    if (!item) return null;
+
+    const insertMode = normalizeInsertMode(item.transform?.insertMode || item.insertMode);
+
+    return {
+      title: item.title || 'AI Command',
+      description: item.description || '',
+      tags: item.tags,
+      shortcut: item.shortcut,
+      keepOpen: true,
+      onSelect: () => runAiCommand({ ...item, insertMode }),
+    };
+  }
+
+  /**
+   * Creates a palette command that runs a local utility (e.g., open link, reload).
+   *
+   * @param {Object} item - Utility catalog configuration.
+   * @returns {Object|null} Palette item descriptor.
+   */
+  function buildUtilityCommand(item) {
+    if (!item) return null;
+
+    return {
+      title: item.title || 'Utility',
+      description: item.description || '',
+      tags: item.tags,
+      shortcut: item.shortcut,
+      icon: item.icon,
+      keepOpen: item.keepOpen ?? false,
+      onSelect: () => {
+        try {
+          if (item.sidebarAction) {
+            window.dispatchEvent(
+              new CustomEvent('he:sidebar-action', {
+                detail: {
+                  action: String(item.sidebarAction),
+                  payload: item.payload || {},
+                },
+              })
+            );
+          } else if (typeof item.onSelect === 'function') {
+            item.onSelect();
+          } else if (item.action) {
+            handleUtilityAction(item.action, item);
+          } else if (item.href) {
+            window.open(item.href, item.target || '_blank');
+          } else {
+            console.warn('Utility command has no action:', item);
+            palette.setStatus('No action defined for this command.', { variant: 'warning' });
+            return;
+          }
+
+          palette.setStatus(`${item.title || 'Utility'} triggered.`, { variant: 'success' });
+        } catch (error) {
+          console.error('Utility command failed:', error);
+          palette.setStatus('Unable to execute command.', { variant: 'danger' });
+        }
+      },
+    };
+  }
+
+  /**
+   * Executes predefined utility command actions such as reloading the page or copying URLs.
+   *
+   * @param {string} action - Utility action identifier.
+   * @param {Object} item - Catalog item providing additional metadata.
+   */
+  function handleUtilityAction(action, item) {
+    switch ((action || '').toLowerCase()) {
+      case 'reload':
+      case 'refresh':
+        location.reload();
+        break;
+      case 'copy-url':
+        void navigator.clipboard.writeText(location.href);
+        break;
+      case 'open':
+      case 'open-modal':
+        if (item.href) {
+          window.open(item.href, item.target || '_blank');
+        }
+        break;
+      default:
+        console.warn('Unknown utility action:', action, item);
+    }
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * HELPERS: PREVIEW & STATUS
+   * ---------------------------------------------------------------------------
+   */
+  /**
+   * Renders an interactive preview card inside the palette, providing insert/copy actions.
+   *
+   * @param {Object} options - Preview configuration object including content and handlers.
+   */
+  function showPreview({
+    title,
+    text = '',
+    html = null,
+    variant = 'info',
+    statusMessage = `Previewing “${title}”`,
+    insertLabel = 'Insert into editor',
+    copyLabel = 'Copy to clipboard',
+    copySuccessMessage = 'Copied to clipboard.',
+    insertHandler,
+    copyHandler,
+    insertMode = 'caret',
+    primaryDisabled = false,
+  }) {
+    const primaryHandler = primaryDisabled
+      ? null
+      : (insertHandler
+          ? insertHandler
+          : async () => {
+              try { captureCurrentEditable(); } catch (_) {}
+              const payload = html || text;
+              const asHtml = !!html;
+              insertTextIntoEditable(payload, insertMode, { asHtml });
+              palette.setStatus(`${title} inserted.`, { variant: 'success' });
+              palette.hidePreview();
+              palette.close();
+            });
+
+    const secondaryHandler = async () => {
+      const payload = html ? palette.getPreviewText() : text;
+      await navigator.clipboard.writeText(payload);
+      palette.setStatus(copySuccessMessage, { variant: 'success' });
+      if (typeof copyHandler === 'function') copyHandler();
+    };
+
+    const runPrimary = async () => {
+      try {
+        await primaryHandler();
+      } catch (error) {
+        console.error('Insert handler failed:', error);
+        palette.setStatus('Unable to insert content.', { variant: 'danger' });
+        return;
+      }
+
+      clearPreviewKeyHandler();
+    };
+
+    const runSecondary = async () => {
+      try {
+        await secondaryHandler();
+      } catch (error) {
+        console.error('Copy handler failed:', error);
+        palette.setStatus('Copy failed. Check clipboard permissions.', { variant: 'danger' });
+      }
+    };
+
+    clearPreviewKeyHandler();
+
+    palette.setStatus(statusMessage, { variant });
+    palette.setPreview({
+      title,
+      ...(html ? { html } : { text }),
+      primary: {
+        label: insertLabel,
+        onClick: primaryHandler ? runPrimary : null,
+        disabled: !!primaryDisabled,
+      },
+      secondary: {
+        label: copyLabel,
+        onClick: runSecondary,
+      },
+      primaryDisabled: !!primaryDisabled,
+    });
+
+    if (primaryHandler) {
+      previewKeyHandler = (event) => {
+        if (event.defaultPrevented) return;
+        if (event.key !== 'Enter') return;
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        event.preventDefault();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        else event.stopPropagation();
+        void runPrimary();
+      };
+
+      palette.addEventListener('keydown', previewKeyHandler, true);
+      // Also suppress keyup to avoid any secondary handlers triggering selection
+      previewKeyUpHandler = (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        else event.stopPropagation();
+      };
+      palette.addEventListener('keyup', previewKeyUpHandler, true);
+    }
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * AI COMMAND FLOW
+   * ---------------------------------------------------------------------------
+   */
+  /**
+   * Executes an AI-enabled palette command by invoking the configured webhook and managing
+   * streaming responses, fallbacks, previews, and text insertion.
+   *
+   * @param {Object} command - Catalog command augmented with runtime parameters.
+   * @returns {Promise<void>} Resolves once the preview has been updated.
+   */
+  async function runAiCommand(command) {
+    palette.hidePreview(true);
+
+    const inlineWebhook = command.webhook && typeof command.webhook === 'object' ? command.webhook : null;
+    const settings = inlineWebhook || (command.webhookKey ? CONFIG.webhooks[command.webhookKey] : null) || null;
+    const fallbackBlocks = Array.isArray(command.fallback)
+      ? command.fallback
+      : Array.isArray(settings?.fallback)
+      ? settings.fallback
+      : [];
+    const insertMode = normalizeInsertMode(command.insertMode);
+    const prompt = command.prompt || inlineWebhook?.prompt || '';
+    const ticketId = command.ticketId || editorState.ticketId || getTicketIdFromUrl();
+
+    if (!settings || !settings.url) {
+      showPreview({
+        title: command.title || 'AI Command',
+        text:
+          fallbackBlocks.join('\n\n') || 'No webhook configuration found. Update the command catalog or CONFIG.webhooks.',
+        variant: fallbackBlocks.length ? 'warning' : 'danger',
+        statusMessage: fallbackBlocks.length
+          ? 'Using fallback text (webhook missing).'
+          : 'No webhook configured for this command.',
+        insertMode,
+      });
+      return;
+    }
+
+    if (!prompt) {
+      console.warn('AI command is missing a prompt. Falling back to demo text.', command);
+      showPreview({
+        title: command.title || 'AI Command',
+        text: fallbackBlocks.join('\n\n') || 'No prompt defined for this command.',
+        variant: 'warning',
+        statusMessage: 'Command missing a prompt definition.',
+        insertMode,
+      });
+      return;
+    }
+
+    palette.setStatus(`Requesting “${command.title || 'AI Command'}”…`, { variant: 'info', loading: true });
+
+    const controller = new AbortController();
+    const timeoutMs = Number.isFinite(settings.timeoutMs) ? settings.timeoutMs : 20000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    let responseText = '';
+    let fallbackUsed = false;
+
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(settings.headers || {}),
+      };
+
+      const payload = {
+        prompt,
+        metadata: buildRequestMetadata({ ...command, ticketId }),
+      };
+
+      const zendeskContext = await buildZendeskContext(ticketId);
+      if (zendeskContext) {
+        if (ticketId) payload.ticketId = ticketId;
+        if (zendeskContext.ticket) payload.ticket = zendeskContext.ticket;
+        if (zendeskContext.conversation) payload.context = zendeskContext.conversation;
+        if (zendeskContext.additional && Object.keys(zendeskContext.additional).length) {
+          Object.assign(payload, zendeskContext.additional);
+        }
+        payload.contextBundle = zendeskContext;
+      }
+
+      if (command.payload && typeof command.payload === 'object') {
+        payload.payload = command.payload;
+      }
+
+      if (inlineWebhook && inlineWebhook.payload && typeof inlineWebhook.payload === 'object') {
+        payload.payload = {
+          ...(payload.payload || {}),
+          ...inlineWebhook.payload,
+        };
+      }
+
+      const response = await fetch(settings.url, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify(payload),
+      });
+
+      const insertLabel = command.insertLabel || 'Insert response';
+      const copyLabel = command.copyLabel || 'Copy response';
+      const streamed = { value: '' };
+      const getStreamedText = () => streamed.value || palette.getPreviewText() || '';
+
+      const focusPaletteInput = () => {
+        try {
+          requestAnimationFrame(() => {
+            try { palette.input && palette.input.focus(); } catch (_) {}
+          });
+        } catch (_) {}
+      };
+
+      const insertFromStream = async () => {
+        try { captureCurrentEditable(); } catch (_) {}
+        const payload = getStreamedText();
+        if (!payload) {
+          palette.setStatus('AI response is still loading.', { variant: 'warning' });
+          return;
+        }
+
+        const htmlOut = convertTextToHtml(payload);
+        insertTextIntoEditable(htmlOut, insertMode, { asHtml: true });
+        palette.setStatus(`${command.title || 'AI Command'} inserted.`, { variant: 'success' });
+        palette.hidePreview();
+        palette.close();
+      };
+
+      const copyFromStream = async () => {
+        const payload = getStreamedText();
+        if (!payload) {
+          palette.setStatus('Nothing to copy yet.', { variant: 'warning' });
+          return;
+        }
+
+        await navigator.clipboard.writeText(payload);
+        palette.setStatus('Response copied.', { variant: 'success' });
+      };
+
+      const streamingResult = await window.AIStreamUtils.tryHandleStreamingResponse(response.clone(), {
+        onStart: () => {
+          streamed.value = '';
+          showPreview({
+            title: command.title || 'AI Command',
+            html: '',
+            text: '',
+            variant: 'info',
+            statusMessage: 'Streaming AI response…',
+            insertLabel,
+            copyLabel,
+            copySuccessMessage: 'Response copied.',
+            insertHandler: insertFromStream,
+            copyHandler: copyFromStream,
+            insertMode,
+            primaryDisabled: true,
+          });
+        },
+        onChunk: (chunk) => {
+          if (!chunk) return;
+          streamed.value += chunk;
+          palette.appendPreviewText(chunk, { smooth: true });
+        },
+        onComplete: ({ text, receivedAny }) => {
+          if (text && text !== streamed.value) {
+            streamed.value = text;
+          }
+          const finalVariant = receivedAny ? 'success' : 'warning';
+          const finalStatus = receivedAny ? 'AI response ready.' : 'Streaming yielded no content; falling back.';
+          showPreview({
+            title: command.title || 'AI Command',
+            html: convertTextToHtml(streamed.value),
+            text: streamed.value,
+            variant: finalVariant,
+            statusMessage: finalStatus,
+            insertLabel,
+            copyLabel,
+            copySuccessMessage: 'Response copied.',
+            insertHandler: insertFromStream,
+            copyHandler: copyFromStream,
+            insertMode,
+          });
+          focusPaletteInput();
+        },
+        onError: (error) => {
+          console.warn('Cmd Logs: Streaming response handling failed', error);
+        },
+      });
+
+      if (streamingResult.handled) {
+        clearTimeout(timeout);
+        return;
+      }
+
+      const raw = await response.text();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${raw.slice(0, 250)}`);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (_) {
+        parsed = null;
+      }
+
+      const candidate =
+        typeof parsed === 'string'
+          ? parsed
+          : parsed?.response || parsed?.text || parsed?.result || raw;
+
+      responseText = String(candidate || '').trim();
+      if (!responseText) {
+        throw new Error('Webhook returned an empty response.');
+      }
+    } catch (error) {
+      console.warn('AI webhook failed, falling back to demo text.', error);
+      responseText =
+        fallbackBlocks.join('\n\n') || 'Unable to fetch response, and no fallback text is configured.';
+      fallbackUsed = true;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    showPreview({
+      title: command.title || 'AI Command',
+      html: convertTextToHtml(responseText),
+      text: responseText,
+      variant: fallbackUsed ? 'warning' : 'success',
+      statusMessage: fallbackUsed ? 'Using fallback demo response.' : 'AI response ready.',
+      insertLabel: command.insertLabel || 'Insert response',
+      copyLabel: command.copyLabel || 'Copy response',
+      copySuccessMessage: fallbackUsed ? 'Fallback response copied.' : 'AI response copied.',
+      insertMode,
+    });
+  }
+
+  /**
+   * Constructs metadata describing the command invocation to include with webhook requests.
+   *
+   * @param {Object} command - Palette command context.
+   * @returns {Object} Metadata payload summarizing environment details.
+   */
+  function buildRequestMetadata(command) {
+    const base = {
+      url: location.href,
+      title: document.title,
+      timestamp: new Date().toISOString(),
+    };
+
+    const ticketId = command?.ticketId || editorState.ticketId || getTicketIdFromUrl();
+    if (ticketId) {
+      base.ticketId = ticketId;
+    }
+
+    if (command?.id) {
+      base.commandId = command.id;
+    }
+
+    if (command?.metadata && typeof command.metadata === 'object') {
+      return { ...base, ...command.metadata };
+    }
+
+    return base;
+  }
+
+  };
+
   })();
