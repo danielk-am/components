@@ -327,6 +327,20 @@
           margin: 0 0 8px 18px;
         }
   
+      .footer {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 18px;
+        font-size: 12px;
+        color: #64748b;
+        border-top: 1px solid rgba(148, 163, 184, 0.35);
+        background: #fff;
+      }
+
+      .footer[data-visible="true"] { display: flex; }
+
       .group {
         padding: 10px 10px 0;
       }
@@ -571,6 +585,11 @@
         root.appendChild(this.statusBar);
         root.appendChild(this.list);
         root.appendChild(this.preview);
+        
+        this.footer = document.createElement('div');
+        this.footer.className = 'footer';
+        this.footer.dataset.visible = 'false';
+        root.appendChild(this.footer);
   
         const style = document.createElement('style');
         style.textContent = CSS;
@@ -884,6 +903,30 @@
       clearStatus() {
         this.statusBar.dataset.visible = 'false';
         this.statusBar.innerHTML = '';
+      }
+
+      /**
+       * Sets footer text and shows the footer area.
+       * @param {string} message - Text to display in the footer.
+       */
+      setFooter(message) {
+        if (!this.footer) return;
+        const value = String(message || '').trim();
+        if (!value) {
+          this.clearFooter();
+          return;
+        }
+        this.footer.textContent = value;
+        this.footer.dataset.visible = 'true';
+      }
+
+      /**
+       * Hides the footer and clears its contents.
+       */
+      clearFooter() {
+        if (!this.footer) return;
+        this.footer.dataset.visible = 'false';
+        this.footer.textContent = '';
       }
 
       /**
@@ -1953,6 +1996,21 @@
       }
     } catch (_) {}
 
+    // Keep footer ticket context updated while palette is open
+    try {
+      palette.addEventListener('he:open', () => {
+        try { refreshFooterTicket(); } catch (_) {}
+      });
+      palette.addEventListener('he:close', () => {
+        try { if (typeof palette.clearFooter === 'function') palette.clearFooter(); } catch (_) {}
+      });
+      document.addEventListener('focusin', () => {
+        if (palette && palette.dataset && palette.dataset.state === 'open') {
+          try { refreshFooterTicket(); } catch (_) {}
+        }
+      });
+    } catch (_) {}
+
     if (CONFIG.catalog.url) {
       refreshCatalog(palette);
     }
@@ -2514,6 +2572,21 @@
     return window.TextInsertionUtils.normalizeInsertMode(mode);
   }
 
+  function refreshFooterTicket() {
+    try {
+      const activeNode = getActiveEditable();
+      const fromDom = activeNode ? getTicketIdFromDom(activeNode) : null;
+      const id = fromDom || editorState.ticketId || getTicketIdFromUrl();
+      if (id) {
+        if (typeof palette.setFooter === 'function') palette.setFooter(`Ticket #${id}`);
+      } else {
+        if (typeof palette.clearFooter === 'function') palette.clearFooter();
+      }
+    } catch (_) {
+      try { if (typeof palette.clearFooter === 'function') palette.clearFooter(); } catch (_) {}
+    }
+  }
+
   /**
    * Inserts text (or HTML) into the currently active Zendesk editor, with clipboard fallback.
    *
@@ -2802,11 +2875,13 @@
       onSelect: () => {
         try {
           if (item.sidebarAction) {
+            const activeNodeForId = getActiveEditable();
+            const ticketId = (activeNodeForId ? getTicketIdFromDom(activeNodeForId) : null) || editorState.ticketId || getTicketIdFromUrl();
             window.dispatchEvent(
               new CustomEvent('he:sidebar-action', {
                 detail: {
                   action: String(item.sidebarAction),
-                  payload: item.payload || {},
+                  payload: { ...(item.payload || {}), ticketId },
                 },
               })
             );
@@ -2988,7 +3063,8 @@
       : [];
     const insertMode = normalizeInsertMode(command.insertMode);
     const prompt = command.prompt || inlineWebhook?.prompt || '';
-    const ticketId = command.ticketId || editorState.ticketId || getTicketIdFromUrl();
+    const activeNodeForId = getActiveEditable();
+    const ticketId = command.ticketId || (activeNodeForId ? getTicketIdFromDom(activeNodeForId) : null) || editorState.ticketId || getTicketIdFromUrl();
 
     if (!settings || !settings.url) {
       showPreview({
