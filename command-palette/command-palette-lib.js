@@ -327,6 +327,11 @@
           margin: 0 0 8px 18px;
         }
   
+      /* When footer is shown, reduce list height slightly to avoid clipping */
+      .palette[data-has-footer="true"] .list {
+        height: calc(var(--cp-list-height) - 32px);
+      }
+
       .footer {
         display: none;
         align-items: center;
@@ -918,6 +923,7 @@
         }
         this.footer.textContent = value;
         this.footer.dataset.visible = 'true';
+        if (this._container) this._container.dataset.hasFooter = 'true';
       }
 
       /**
@@ -927,6 +933,7 @@
         if (!this.footer) return;
         this.footer.dataset.visible = 'false';
         this.footer.textContent = '';
+        if (this._container) this._container.dataset.hasFooter = 'false';
       }
 
       /**
@@ -2885,6 +2892,17 @@
                 },
               })
             );
+            // Fallback: also emit overlay event used by sidebar scripts
+            try {
+              window.dispatchEvent(
+                new CustomEvent('zen-he-open-overlay', {
+                  detail: {
+                    id: String(item.sidebarAction),
+                    payload: { ...(item.payload || {}), ticketId },
+                  },
+                })
+              );
+            } catch (_) {}
           } else if (typeof item.onSelect === 'function') {
             item.onSelect();
           } else if (item.action) {
