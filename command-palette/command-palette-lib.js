@@ -1556,6 +1556,7 @@
     function showTextPreview({
       title,
       text,
+      html,
       insertMode = 'caret',
       statusVariant = 'info',
       statusMessage,
@@ -1597,7 +1598,7 @@
 
       palette.setPreview({
         title: title || 'Snippet',
-        text: payload,
+        ...(html ? { html } : { text: payload }),
         primary,
         secondary: {
           label: secondaryLabel,
@@ -1771,16 +1772,17 @@
                   if (text && text !== streamed.value) {
                     streamed.value = text;
                   }
-                  showTextPreview({
-                    title: command.title || 'AI Command',
-                    text: streamed.value,
-                    insertMode,
-                    statusVariant: streamed.value ? 'success' : 'warning',
-                    statusMessage: streamed.value ? 'AI response ready.' : 'Streaming finished without content.',
-                    primaryLabel: insertLabel,
-                    secondaryLabel: copyLabel,
-                    closeOnInsert: false,
-                  });
+          showTextPreview({
+            title: command.title || 'AI Command',
+            text: streamed.value,
+            html: convertTextToHtml(streamed.value),
+            insertMode,
+            statusVariant: streamed.value ? 'success' : 'warning',
+            statusMessage: streamed.value ? 'AI response ready.' : 'Streaming finished without content.',
+            primaryLabel: insertLabel,
+            secondaryLabel: copyLabel,
+            closeOnInsert: false,
+          });
                 },
                 onError: (error) => {
                   console.warn('[CMD generic] Streaming handler error', error);
@@ -1825,6 +1827,7 @@
       showTextPreview({
         title: command.title || 'AI Command',
         text: responseText,
+        html: convertTextToHtml(responseText),
         insertMode,
         statusVariant: fallbackUsed ? 'warning' : 'success',
         statusMessage: fallbackUsed ? 'Using fallback response.' : 'AI response ready.',
